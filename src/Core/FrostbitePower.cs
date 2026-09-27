@@ -13,6 +13,7 @@ using MegaCrit.Sts2.Core.ValueProps;
 
 namespace lingdawnpao.Core
 {
+    using global::lingdawnpao.Core.Relics;
     /// <summary>
     /// 冰冻：Debuff（历史上只挂敌人，2026-09-20 起「冰封王座」也会把它挂到玩家自己身上）。
     /// 挂冰（施加或叠加）时立即结算一次等同当前层数的伤害——**对敌无视格挡、对己可格挡**
@@ -151,12 +152,13 @@ namespace lingdawnpao.Core
             }
 
             // 挂冰回调：**按"每张牌施加一次"计**（用户 2026-09-20 定案），不吃「冰封」的多段触发。
-            // 「雪隐」给格挡。批量模式下由 ApplyFrostToAllAsync 统一回调，这里跳过。
+            // 「雪隐」给格挡；「霜铃」判每回合首次抽牌。批量模式下由 ApplyFrostToAllAsync 统一回调，这里跳过。
             // applier 为 null 时不触发——「冰封王座」把冰冻挂到玩家自己身上走的正是这条路，
             // 避免了"自伤反过来给自己送防"。
             if (applier != null && _batchDepth == 0)
             {
                 await IceArmorPower.NotifyFrostAppliedAsync(choiceContext, applier);
+                await Frostbell.NotifyFrostAppliedAsync(choiceContext, applier);
             }
 
             return power;
@@ -198,6 +200,7 @@ namespace lingdawnpao.Core
             if (applier != null && anyApplied)
             {
                 await IceArmorPower.NotifyFrostAppliedAsync(choiceContext, applier);
+                await Frostbell.NotifyFrostAppliedAsync(choiceContext, applier);
             }
         }
 

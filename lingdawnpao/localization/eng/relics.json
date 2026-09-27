@@ -5,5 +5,14 @@
   "ASSASSIN.title": "Assassin",
   "ASSASSIN.description": "You can switch to [gold]Ambush form[/gold]. Each turn, you may add a card from your hand into your [gold]Ambush zone[/gold] for free. The first [gold]Power[/gold] card you play each turn raises your [gold]Ambush zone[/gold] capacity by 1. (Base capacity 4)",
   "ASSASSIN.flavor": "You have already mastered the tricks of the hunt.",
-  "ASSASSIN.selectionScreenPrompt": "Select a card to add into your [gold]Ambush zone[/gold]."
+  "ASSASSIN.selectionScreenPrompt": "Select a card to add into your [gold]Ambush zone[/gold].",
+  "COZY_PELT.title": "Cozy Pelt",
+  "COZY_PELT.description": "At the start of each combat, gain 6 [gold]Block[/gold].",
+  "COZY_PELT.flavor": "\"The whole winter hides inside the fur.\"",
+  "FROSTBELL.title": "Frostbell",
+  "FROSTBELL.description": "The first time you apply [gold]Frostbite[/gold] each turn, draw 1 card.",
+  "FROSTBELL.flavor": "\"The bell sweeps across the snowfield; no prey escapes it.\"",
+  "SNOWBALL_POUCH.title": "Snowball Pouch",
+  "SNOWBALL_POUCH.description": "At the start of each turn, add 1 [gold]Snowball[/gold] into your hand.",
+  "SNOWBALL_POUCH.flavor": "\"Always keep one loaded.\""
 }

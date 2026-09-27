@@ -5,5 +5,14 @@
   "ASSASSIN.title": "暗杀者",
   "ASSASSIN.description": "你可以切换为[gold]伏击形态[/gold]。每回合你可以免费将一张手牌加入[gold]伏击区域[/gold]。每回合你首次使用[gold]能力[/gold]牌时，[gold]伏击区域[/gold]上限+1。（初始上限4）",
   "ASSASSIN.flavor": "你已经熟练掌握了狩猎的诀窍。",
-  "ASSASSIN.selectionScreenPrompt": "选择一张牌加入你的[gold]伏击区域[/gold]。"
+  "ASSASSIN.selectionScreenPrompt": "选择一张牌加入你的[gold]伏击区域[/gold]。",
+  "COZY_PELT.title": "暖绒",
+  "COZY_PELT.description": "进入战斗时，获得6点[gold]格挡[/gold]。",
+  "COZY_PELT.flavor": "“绒毛里藏着整个冬天。”",
+  "FROSTBELL.title": "霜铃",
+  "FROSTBELL.description": "每回合你首次造成[gold]冰冻[/gold]时，抽1张牌。",
+  "FROSTBELL.flavor": "“铃声掠过雪原，猎物无所遁形。”",
+  "SNOWBALL_POUCH.title": "雪球袋",
+  "SNOWBALL_POUCH.description": "每回合开始时，将1张[gold]雪球[/gold]加入你的手牌。",
+  "SNOWBALL_POUCH.flavor": "“永远备着一发。”"
 }
