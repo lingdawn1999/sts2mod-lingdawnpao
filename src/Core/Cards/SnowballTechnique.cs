@@ -56,8 +56,9 @@ namespace lingdawnpao.Core
             await CreatureCmd.TriggerAnim(Owner.Creature, "Cast", Owner.Character.CastAnimDelay);
 
             // 填到上限：循环条件先判满，避免多造一张孤儿牌（照「雪灾」填晕眩的写法）
+            await AmbushZone.BringOutBeforeGenerateAsync(choiceContext, cardPlay.Target, Owner);
             AmbushZoneState zone = AmbushZone.For(Owner);
-            while (!zone.IsFull)
+            while (!zone.IsFull && !zone.IsCoolingDown)
             {
                 Snowball snowball = CombatState!.CreateCard<Snowball>(Owner);
                 if (IsUpgraded)

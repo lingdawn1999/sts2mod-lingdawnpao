@@ -5,7 +5,6 @@ using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.HoverTips;
-using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.ValueProps;
@@ -46,32 +45,12 @@ namespace lingdawnpao.Core
     /// 暴风雪（2 费蓝技能 · 6 层全体，升级 12）｜本卡（3 费 · 8 伤 + 12 层，代价是费用，单体）。
     /// </para>
     /// </summary>
-    public sealed class SnowPeakCrush : CardModel, ILingdawnpaoCard, IFusionMaterial
+    public sealed class SnowPeakCrush : CardModel, ILingdawnpaoCard
     {
         protected override IEnumerable<IHoverTip> ExtraHoverTips =>
         [
             HoverTipFactory.FromPower<FrostbitePower>(),
         ];
-
-        /// <summary>合成材料轴：挂冰段作为非伤害特效接线（伤害段走 DynamicVars 通用读取）。</summary>
-        public async Task PlayFusionEffectAsync(PlayerChoiceContext choiceContext, CardPlay fusionPlay)
-        {
-            ArgumentNullException.ThrowIfNull(fusionPlay.Target, "fusionPlay.Target");
-
-            await FrostbitePower.ApplyFrostAsync(choiceContext, fusionPlay.Target,
-                DynamicVars["FrostbitePower"].BaseValue, Owner.Creature, this);
-        }
-
-        /// <summary>合成卡面附加段：挂冰层数合成时刻烘焙。</summary>
-        public string FusionEffectLine
-        {
-            get
-            {
-                LocString line = new("cards", "SNOW_PEAK_CRUSH.fusionEffect");
-                line.Add("FrostbitePower", DynamicVars["FrostbitePower"].BaseValue);
-                return line.GetFormattedText();
-            }
-        }
 
         protected override IEnumerable<DynamicVar> CanonicalVars =>
         [

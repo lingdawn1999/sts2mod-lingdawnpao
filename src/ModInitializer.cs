@@ -111,10 +111,11 @@ namespace lingdawnpao
             // 导致 CombatManager 的回合推进任务中断 → 埋牌动作不执行、之后出不了牌。
             // 修法：把全部 Token 稀有度衍生牌登记进本体的 TokenCardPool（= 它们语义上该在的地方）。
             // 注意：**只挂 TokenCardPool，不要同时挂 LingdawnpaoCardPool**——Pool 取第一个命中的池。
-            // 【v2 退役归档】「雪球」「大雪球」「呼吸」已随雪球线/永恒呼吸下架（整线退役方案 A），
-            // 不再登记进 TokenCardPool；卡牌类文件保留作归档。
+            ModHelper.AddModelToPool<TokenCardPool, AmbushStance>();
             ModHelper.AddModelToPool<TokenCardPool, AmbushStrike>();
             ModHelper.AddModelToPool<TokenCardPool, Bharal>();
+            ModHelper.AddModelToPool<TokenCardPool, BigSnowball>();
+            ModHelper.AddModelToPool<TokenCardPool, Breath>();
             ModHelper.AddModelToPool<TokenCardPool, DotingMom>();
             ModHelper.AddModelToPool<TokenCardPool, DullYak>();
             ModHelper.AddModelToPool<TokenCardPool, FierceFoxCombo>();
@@ -127,9 +128,6 @@ namespace lingdawnpao
             ModHelper.AddModelToPool<TokenCardPool, Snowball>();
             ModHelper.AddModelToPool<TokenCardPool, SnowShelter>();
             ModHelper.AddModelToPool<TokenCardPool, TibetanFox>();
-            // 【v2 吞噬合成轴】合体卡（FusionCard）：按实例动态的合成产物，只挂 TokenCardPool
-            // （ModelDb 需要类型注册；不进 LingdawnpaoCardPool——产物不该出现在奖励/图鉴里）
-            ModHelper.AddModelToPool<TokenCardPool, FusionCard>();
 
             Log.Info("芝士雪豹 mod 加载成功");
         }

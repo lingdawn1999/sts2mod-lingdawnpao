@@ -62,6 +62,8 @@ namespace lingdawnpao.Core
                 .WithHitFx("vfx/vfx_attack_blunt", null, "blunt_attack.mp3")
                 .Execute(choiceContext);
 
+            // 先带出区域旧牌，再生成新牌
+            await AmbushZone.BringOutBeforeGenerateAsync(choiceContext, cardPlay.Target, Owner);
             // 埋抽牌堆顶。区满 / 抽牌堆空时 BuryTopOfDrawPileAsync 返回 false，本牌就只是一张 3 伤攻击。
             await AmbushZone.BuryTopOfDrawPileAsync(choiceContext, Owner);
         }

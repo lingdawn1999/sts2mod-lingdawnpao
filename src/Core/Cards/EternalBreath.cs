@@ -16,8 +16,9 @@ namespace lingdawnpao.Core
     /// **2026-09-25 用户改升级位**：原为"生成的呼吸全部为升级版"，改成**降费 1 → 0**
     /// （起因是「呼吸」本体的格挡被砍掉，升级它已经没有多少价值；且「捕猎」的升级位已经是"质变生成升级版"，
     /// 两张同族卡各占一种升级方式更好区分）。
-    /// 区域已满时无可埋位置，打出即空放（与「捕猎」一致，不做额外保护）。
-    /// **结算顺序（v2）**：直接填呼吸——v2 普通出牌不再自动带出，埋进去就老实待着。
+    /// 区域已满 / 冷却时无可埋位置，打出即空放（与「捕猎」一致，不做额外保护）。
+    /// **结算顺序**：先带出区域里的**旧牌**，最后才填呼吸——刚生成的呼吸不会被当场带出打掉
+    /// （2026-09-23 用户定案，详见 `AmbushZone.BringOutBeforeGenerateAsync`）。
     /// <para>
     /// **2026-09-24 用户加[gold]消耗[/gold]（防无限刷治疗）**：起因是用户指出
     /// "可能会出现故意卡住小怪来刷呼吸的回血的情况"。核算属实——「呼吸」是 0 费的
@@ -49,9 +50,12 @@ namespace lingdawnpao.Core
             await CreatureCmd.TriggerAnim(Owner.Creature, "Cast", Owner.Character.CastAnimDelay);
 
             AmbushZoneState zone = AmbushZone.For(Owner);
+            // 结算顺序（2026-09-23 用户定案）：先带出区域里的**旧牌**，最后才填呼吸。
+            // 遗物钩子对本卡整张豁免，带出必须由本卡自己发起（详见 AmbushZone.BringOutBeforeGenerateAsync）。
+            await AmbushZone.BringOutBeforeGenerateAsync(choiceContext, cardPlay.Target, Owner);
 
-            // 区域已满时埋不进任何牌，先判掉，避免凭空造出无处安放的衍生牌
-            while (!zone.IsFull)
+            // 冷却（过载代价）时埋不进任何牌，先判掉，避免凭空造出无处安放的衍生牌
+            while (!zone.IsFull && !zone.IsCoolingDown)
             {
                 Breath breath = CombatState!.CreateCard<Breath>(Owner);
                 if (!await AmbushZone.BuryGeneratedAsync(choiceContext, Owner, breath))

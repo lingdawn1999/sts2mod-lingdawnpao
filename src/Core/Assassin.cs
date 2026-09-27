@@ -15,16 +15,16 @@ namespace lingdawnpao.Core
     /// <summary>
     /// 先古遗物「暗杀者」：初始遗物「伏击者」的先古版本——玩家在本体先古事件里拿到「欧洛巴斯之触」
     /// 时，伏击者会被替换成本遗物（映射补丁见 Patches.cs 的 TouchOfOrobas_GetUpgradedStarterRelic_Patch）。
-    /// 因为替换会把伏击者移除，所以它**继承伏击者的全部行为**（v2 四条款，见 <see cref="FrostFang" />），
-    /// 再叠加两条新效果：
+    /// 因为替换会把伏击者移除，所以它**继承伏击者的全部行为**（右键切换伏击形态、非伏击形态打出时带出一张、
+    /// 战斗结束清空区域），再叠加两条新效果：
     /// ① [gold]伏击区域[/gold]上限 +1（由 AmbushZoneState.Capacity 读取，随身携带期间永久）；
-    /// ② 在你的回合开始时，可以从手牌中自选一张牌**免费**加入[gold]伏击区域[/gold]（可选、能跳过，
-    ///    走 <see cref="AmbushZone.BuryFromHandAsync" />，不占每回合入区额度）。
+    /// ② 在你的回合开始时，可以从手牌中自选一张牌**免费**加入[gold]伏击区域[/gold]（可选、能跳过）。
     ///
     /// 钩子选 AfterPlayerTurnStart 的原因：本体回合开始的顺序是
     /// 「清格挡 → BeforeSideTurnStart → 能量重置 → 摸牌 → AfterPlayerTurnStart → AfterSideTurnStart」，
     /// 这个钩子既能拿到刚摸的牌（满足"先摸牌再选"），又带 PlayerChoiceContext 可以弹选牌界面
     /// （本体 WellLaidPlansPower / GamblingChip 就是在这里做手牌选择的）。
+    /// 埋入走 AmbushZone.BuryAsync 的 spendResources: false（免费），复用同一套动画与增益重算。
     /// 图标直接复用伏击者：只改 IconBaseName，PackedIconPath / PackedIconOutlinePath / BigIconPath 一起跟着走。
     /// </summary>
     public class Assassin : FrostFang
@@ -44,7 +44,7 @@ namespace lingdawnpao.Core
             }
 
             AmbushZoneState zone = AmbushZone.For(player);
-            if (zone.IsFull || PileType.Hand.GetPile(player).Cards.Count == 0)
+            if (zone.IsCoolingDown || zone.IsFull || PileType.Hand.GetPile(player).Cards.Count == 0)
             {
                 return;
             }
@@ -62,11 +62,11 @@ namespace lingdawnpao.Core
 
             Flash();
             Log.Info($"暗杀者：回合开始自选埋牌 {picked[0].Id.Entry}（玩家 {player.NetId}）");
-            await AmbushZone.BuryFromHandAsync(choiceContext, player, picked[0]);
+            await AmbushZone.BuryAsync(choiceContext, picked[0], player, spendResources: false);
         }
 
         /// <summary>
-        /// 可埋范围与打出条件保持一致；埋入免费（牌不打出、不扣费），
+        /// 可埋范围与手动埋牌保持一致（BuryCardAction 要求 CanPlay）；差别是本遗物的埋入免费，
         /// 所以"只因能量/辉星不足而打不出"的牌也允许选。
         /// </summary>
         private static bool CanBury(CardModel card)

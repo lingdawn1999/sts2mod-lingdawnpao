@@ -24,18 +24,12 @@ namespace lingdawnpao.Core
     /// 的写法）——所以有 1 层伏兵时是 3 段 ×2 遍 = 6 段，不是 4 段。
     /// 同族对照（单体多段）：本卡基础 2 段（1 费）｜收网 `CloseTheNet` 按区域张数多段（2 费金）｜
     /// 猛虎连击 `TigerCombo` 带出连锁（2 费金）。
-    /// **吞噬合成轴**：作为材料贡献 2 段（<see cref="IFusionMaterial.FusionSegments" />）——
-    /// 合成时段数取两材料较大者，本卡是"段数轴"的代表载体（设计稿算例：连环爪 + 冰峰压顶 → 大段数合体）。
-    /// 埋伏分支的 3 段**不算**——材料按基础形态贡献。
     /// </summary>
-    public sealed class ChainClaw : CardModel, IAmbushBonusCard, IFusionMaterial
+    public sealed class ChainClaw : CardModel, IAmbushBonusCard
     {
         private const int BaseHits = 2;
 
         private const int AmbushHits = 3;
-
-        /// <summary>合成材料轴：基础 2 段（埋伏 3 段是打出时分支，材料形态不算）。</summary>
-        public int FusionSegments => BaseHits;
 
         protected override IEnumerable<IHoverTip> ExtraHoverTips =>
         [

@@ -33,33 +33,13 @@ namespace lingdawnpao.Core
     /// `CardPileCmd.AddGeneratedCardToCombat(card, PileType.Draw, Owner, CardPilePosition.Random)`
     /// （**Random = 插进抽牌堆的随机下标，不重排其余牌**），并配 `CardCmd.PreviewCardPileAdd` + 短暂停顿
     /// 让玩家看清牌被洗了进去（同本体 `BoostAway` / `Overclock` 的写法）。
-    /// **吞噬合成轴**：伤害段由引擎通用读取；晕眩段作为非伤害特效接线（各执行一次不乘段）。
     /// </summary>
-    public sealed class FiercePounce : CardModel, ILingdawnpaoCard, IFusionMaterial
+    public sealed class FiercePounce : CardModel, ILingdawnpaoCard
     {
         protected override IEnumerable<IHoverTip> ExtraHoverTips =>
         [
             HoverTipFactory.FromCard<Dazed>(),
         ];
-
-        /// <summary>合成材料轴：晕眩段（伤害段走 DynamicVars 通用读取，无需声明）。</summary>
-        public async Task PlayFusionEffectAsync(PlayerChoiceContext choiceContext, CardPlay fusionPlay)
-        {
-            Dazed dazed = CombatState!.CreateCard<Dazed>(Owner);
-            CardCmd.PreviewCardPileAdd(await CardPileCmd.AddGeneratedCardToCombat(
-                dazed, PileType.Draw, Owner, CardPilePosition.Random));
-        }
-
-        /// <summary>合成卡面附加段：晕眩段文本（合成时刻烘焙）。</summary>
-        public string FusionEffectLine
-        {
-            get
-            {
-                LocString line = new("cards", "FIERCE_POUNCE.fusionEffect");
-                line.Add("Dazed", 1m);
-                return line.GetFormattedText();
-            }
-        }
 
         protected override IEnumerable<DynamicVar> CanonicalVars =>
         [

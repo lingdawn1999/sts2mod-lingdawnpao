@@ -43,6 +43,8 @@ namespace lingdawnpao.Core
             await CreatureCmd.TriggerAnim(Owner.Creature, "Cast", Owner.Character.CastAnimDelay);
 
             AmbushZoneState zone = AmbushZone.For(Owner);
+            // 先带出区域旧牌，再生成新牌（避免带出刚生成的牌，见 AmbushZone 带出顺序约定）
+            await AmbushZone.BringOutBeforeGenerateAsync(choiceContext, cardPlay.Target, Owner);
 
             for (int i = 0; i < DynamicVars.Repeat.IntValue; i++)
             {

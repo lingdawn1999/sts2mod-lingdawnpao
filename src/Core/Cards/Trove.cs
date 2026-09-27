@@ -74,8 +74,10 @@ namespace lingdawnpao.Core
             }
 
             // 2026-09-25：不再按牌型分流，**任意牌**都优先入区
+            // 先带出区域旧牌，再生成新牌
+            await AmbushZone.BringOutBeforeGenerateAsync(choiceContext, cardPlay.Target, Owner);
             AmbushZoneState zone = AmbushZone.For(Owner);
-            if (!zone.IsFull)
+            if (!zone.IsFull && !zone.IsCoolingDown)
             {
                 // 从抽牌堆取出后才能入区（同一张牌不能同时属于两个堆，AddInternal 会抛）
                 picked.RemoveFromCurrentPile();

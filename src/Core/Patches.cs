@@ -36,6 +36,148 @@ namespace lingdawnpao.Core
     /// 把芝士雪豹加进角色列表。ModelDb.AllCharacters 是硬编码的 5 角色数组
     /// （属性每次调用都新建数组，无缓存，因此 Postfix 追加即可），角色选单等 UI 都遍历它。
     /// </summary>
+    internal static class AmbushBury
+    {
+        public static bool ShouldBury(CardModel card, Creature? target, out Player? owner)
+        {
+            owner = card.Owner;
+            // 必须真的有伏击者：伏击形态是 mod 自己的静态状态，换角色后可能还留着 true，
+            // 没有遗物就没人把牌带出来，牌会永久卡在区域里
+            if (owner?.PlayerCombatState == null || owner.GetRelic<FrostFang>() == null)
+            {
+                return false;
+            }
+
+            // 冷却中（过载的代价 / 凝神 / 背水一战，`IsCoolingDown`）**绝不能拦**：BuryAsync 一进来见到冷却就
+            // 直接 return，拦下来就等于"牌被压进屏幕中央、既回不了手也打不出"（2026-09-22 用户报障）。
+            // 区域失效时这张牌本来就该按普通出牌结算。
+            //
+            // ⚠️ **每一处拦截都要留下理由**：这段是纯本地预判，静默返回会把"埋不了牌"变成无头案——
+            // 2026-09-23 用户报障"伏击区没进冷却却不能埋牌"，当时一条日志都没有，只能靠猜。
+            // 本方法只在**伏击形态下打出牌**时被调用（调用方先判 IsAmbushMode），所以不会刷屏。
+            AmbushZoneState zone = AmbushZone.For(owner);
+            if (zone.IsCoolingDown)
+            {
+                Log.Info("伏击者：不埋牌——伏击区处于冷却");
+                return false;
+            }
+
+            if (zone.IsFull)
+            {
+                Log.Info($"伏击者：不埋牌——伏击区已满（{zone.Count}/{zone.Capacity}）");
+                return false;
+            }
+
+            if (!card.CanPlayTargeting(target))
+            {
+                Log.Info($"伏击者：不埋牌——{card.Id.Entry} 当前无法对指定目标打出");
+                return false;
+            }
+
+            int cost = card.EnergyCost.GetAmountToSpend();
+            if (cost > owner.PlayerCombatState.Energy)
+            {
+                Log.Info($"伏击者：不埋牌——能量不足（需要 {cost}，当前 {owner.PlayerCombatState.Energy}）");
+                return false;
+            }
+
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// 埋卡主拦截点：NCardPlay.TryPlayCard（鼠标/手柄出牌的共同入口）。
+    /// 不能拦 CardModel.TryManualPlay——它只有几行，会被 CoreCLR JIT 内联进调用方，
+    /// 补丁 detour 直接被绕过（实测 Prefix 从未执行）。
+    /// 这里不就地改任何状态，只把 BuryCardAction 丢进同步队列（本体出牌就是这么做的），
+    /// 队列会保证每个客户端按同一顺序执行 → 联机不脱同步。
+    /// 随后调 Cleanup(true) 走"出牌成功"的节点清理路径。
+    /// </summary>
+    [HarmonyPatch]
+    internal static class NCardPlay_TryPlayCard_AmbushBuryPatch
+    {
+        [HarmonyFinalizer]
+        private static System.Exception? Fin(System.Exception? __exception) =>
+            PatchSwallower.Swallow(__exception, nameof(NCardPlay_TryPlayCard_AmbushBuryPatch));
+        private static readonly MethodInfo CardGetter = AccessTools.PropertyGetter(typeof(NCardPlay), "Card");
+
+        private static readonly MethodInfo CleanupMethod = AccessTools.Method(typeof(NCardPlay), "Cleanup");
+
+        private static MethodBase TargetMethod() => AccessTools.Method(typeof(NCardPlay), "TryPlayCard");
+
+        private static bool Prefix(NCardPlay __instance, Creature? target)
+        {
+            CardModel? card = (CardModel?)CardGetter.Invoke(__instance, null);
+            Player? owner = card?.Owner;
+            if (card == null || owner == null || !AmbushZone.For(owner).IsAmbushMode
+                || !AmbushBury.ShouldBury(card, target, out owner))
+            {
+                return true;
+            }
+
+            Log.Info($"伏击者：伏击形态，拦截出牌 {card.Id.Entry} → 入队埋牌动作");
+            RunManager.Instance.ActionQueueSynchronizer.RequestEnqueue(new BuryCardAction(card));
+            CleanupMethod.Invoke(__instance, new object[] { true });
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 兜底拦截：CardModel.TryManualPlay（若未被 JIT 内联则会生效；TryPlayCard 拦截点先于它，
+    /// 两处不会重复埋）。
+    /// </summary>
+    [HarmonyPatch(typeof(CardModel), nameof(CardModel.TryManualPlay))]
+    internal static class TryManualPlay_AmbushBuryPatch
+    {
+        [HarmonyFinalizer]
+        private static System.Exception? Fin(System.Exception? __exception) =>
+            PatchSwallower.Swallow(__exception, nameof(TryManualPlay_AmbushBuryPatch));
+        private static bool Prefix(CardModel __instance, Creature? target, ref bool __result)
+        {
+            Player? owner = __instance.Owner;
+            if (owner == null || !AmbushZone.For(owner).IsAmbushMode
+                || !AmbushBury.ShouldBury(__instance, target, out owner))
+            {
+                return true;
+            }
+
+            __result = true;
+            Log.Info($"伏击者：伏击形态，拦截出牌 {__instance.Id.Entry} → 入队埋牌动作（TryManualPlay 路径）");
+            RunManager.Instance.ActionQueueSynchronizer.RequestEnqueue(new BuryCardAction(__instance));
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 遗物右键：NClickableControl._GuiInput 对左/右键都会发 MousePressed/MouseReleased，
+    /// 但 MouseReleased 是松开事件（Pressed=false），因此订阅 MousePressed 判断按下+右键。
+    /// </summary>
+    [HarmonyPatch(typeof(NRelicInventoryHolder), nameof(NRelicInventoryHolder.Create), new[] { typeof(RelicModel) })]
+    internal static class NRelicInventoryHolder_Create_RightClickPatch
+    {
+        private static void Postfix(NRelicInventoryHolder? __result, RelicModel relic)
+        {
+            if (__result == null || relic is not FrostFang fang)
+            {
+                return;
+            }
+
+            Log.Info("伏击者：遗物图标已挂接右键监听");
+            __result.MousePressed += inputEvent =>
+            {
+                if (inputEvent is InputEventMouseButton mb && mb.Pressed && mb.ButtonIndex == MouseButton.Right)
+                {
+                    Log.Info("伏击者：检测到右键");
+                    fang.ToggleAmbushMode();
+                }
+            };
+        }
+    }
+
+    /// <summary>
+    /// 把芝士雪豹加进角色列表。ModelDb.AllCharacters 是硬编码的 5 角色数组
+    /// （属性每次调用都新建数组，无缓存，因此 Postfix 追加即可），角色选单等 UI 都遍历它。
+    /// </summary>
     [HarmonyPatch(typeof(ModelDb), nameof(ModelDb.AllCharacters), MethodType.Getter)]
     internal static class ModelDb_AllCharacters_AddLingdawnpaoPatch
     {

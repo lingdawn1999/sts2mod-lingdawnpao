@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -46,6 +45,9 @@ namespace lingdawnpao.Core
         /// </summary>
         public CardPile Pile { get; } = new(PileType.None);
 
+        /// <summary>伏击形态（收集/倾泻）。由 ToggleAmbushAction 在所有客户端上同步翻转。</summary>
+        public bool IsAmbushMode { get; set; }
+
         /// <summary>
         /// 伏击区上限 = <see cref="AmbushCapacityPower" /> 当前层数（战斗开始由 FrostFang.BeforeCombatStart 挂上）。
         /// 「扩张」「张网以待」通过 PowerCmd.Apply 给该能力叠层；遗物「暗杀者」的 +1 在战斗开始时
@@ -84,10 +86,7 @@ namespace lingdawnpao.Core
         /// </summary>
         public bool IsOverloaded { get; set; }
 
-        /// <summary>
-        /// 失效（「过载」的代价 / 「凝神」「背水一战」）：本回合区域**不提供力量与敏捷**——
-        /// 入区 / 兑现照常（v2 规则 7 降格）。
-        /// </summary>
+        /// <summary>冷却（过载的代价）：整个伏击区失效一回合——不提供增益、不能埋牌、不能带出。</summary>
         public bool IsCoolingDown { get; set; }
 
         /// <summary>
@@ -105,25 +104,6 @@ namespace lingdawnpao.Core
         /// 重新埋入会覆盖旧值，所以不存在"带出后再埋还算老兵"的脏数据。
         /// </summary>
         public Dictionary<CardModel, int> BuriedTurn { get; } = new();
-
-        /// <summary>
-        /// 本回合已用掉的入区额度（v2）。每回合开始清零；额度上限见 <see cref="QuotaLeft" />。
-        /// </summary>
-        public int QuotaUsed { get; set; }
-
-        /// <summary>
-        /// 本回合剩余的入区额度（v2）：基础 1 张（遗物"伏击者"）+「永恒狩猎」层数。
-        /// 只对"打出结算后改道进区"的那张牌消耗；主动埋卡与生成牌埋入不占额度。
-        /// </summary>
-        public int QuotaLeft =>
-            1 + (int)(Player.Creature.GetPower<EternalHuntPower>()?.Amount ?? 0) - QuotaUsed;
-
-        /// <summary>
-        /// 本场战斗兑现过的**不同卡牌种类**（按 Id.Entry 记账）——「狩猎图鉴」的成长依据。
-        /// 同一张牌被兑现多次只记一种；战斗结束清空。
-        /// </summary>
-        public HashSet<string> CashedOutKinds { get; } = new();
-
 
         public IReadOnlyList<CardModel> Cards => Pile.Cards;
 
@@ -147,9 +127,9 @@ namespace lingdawnpao.Core
     }
 
     /// <summary>
-    /// 伏击区域的逻辑入口（v2）。改道发生在遗物 AfterCardPlayed 钩子里（本体出牌动作内部，全端执行）；
-    /// 主动埋卡 / 兑现带出都由卡牌 OnPlay 或遗物回合钩子直接驱动——它们本身就跑在
-    /// 同步动作队列的结算流程里，每个客户端按同一顺序执行，联机不会脱同步。
+    /// 伏击区域的逻辑入口。所有改变状态的操作都由 BuryCardAction / ToggleAmbushAction 驱动，
+    /// 这两个动作经 ActionQueueSynchronizer 入队，会在每个客户端上按同一顺序执行，因此联机不会脱同步；
+    /// 带出则发生在遗物 AfterCardPlayed 钩子里（本体出牌动作内部，本来就全端执行）。
     /// </summary>
     public static class AmbushZone
     {
@@ -172,7 +152,7 @@ namespace lingdawnpao.Core
             {
                 if (zone != null)
                 {
-                    Log.Info($"伏击区域：检测到新对局（玩家 {player.NetId}），丢弃旧状态（{zone.Count} 张埋牌）");
+                    Log.Info($"伏击区域：检测到新对局（玩家 {player.NetId}），丢弃旧状态（{zone.Count} 张埋牌，伏击形态={zone.IsAmbushMode}）");
                     PlayingFromAmbush.Clear();
                     VeteranAmbush.Clear();
                 }
@@ -220,6 +200,37 @@ namespace lingdawnpao.Core
                 Player? me = LocalPlayer;
                 return me == null ? null : For(me);
             }
+        }
+
+        /// <summary>
+        /// 是否**任意**伏击玩家的手牌里躺着「伏击姿态」（手牌上限排除它的判据，见
+        /// <see cref="AmbushStance.HandLimit" />）。
+        /// <para>
+        /// ⚠️ **必须是"任意持有者"这种全端一致的判据**：`CardPile.MaxCardsInHand` 是无参静态属性，
+        /// 调用点拿不到"这张牌属于谁"，按本地玩家判定会让联机两端各算各的（一端 11 一端 10）→
+        /// 抽牌张数脱同步。按"本场战斗里有没有人持有姿态牌"判定则两端完全一致。
+        /// </para>
+        /// </summary>
+        public static bool AnyHandHoldsFormCard()
+        {
+            foreach (AmbushZoneState zone in Zones.Values)
+            {
+                CardPile? hand = zone.Player.PlayerCombatState?.Hand;
+                if (hand == null)
+                {
+                    continue;
+                }
+
+                foreach (CardModel card in hand.Cards)
+                {
+                    if (card is AmbushStance)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
         public static bool IsAmbushPlay(CardModel card) => PlayingFromAmbush.Contains(card);
@@ -280,7 +291,7 @@ namespace lingdawnpao.Core
         /// 前置的 `BuriedTurn` 命中判定保留——牌必须真的躺在区域里（`IsReadyForAmbush` 还会再查一次）。
         /// </para>
         /// <para>
-        /// ⚠️ **只免等待、不碰失效**：失效（v2 降格）只抑制力敏，与本判定无关。
+        /// ⚠️ **只免等待、不碰冷却**：冷却拦的是 `BuryAsync` 与带出入口，与本判定无关。
         /// </para>
         /// </summary>
         private static bool IsReady(AmbushZoneState zone, CardModel card) =>
@@ -313,26 +324,111 @@ namespace lingdawnpao.Core
             Zones.TryGetValue(player.NetId, out AmbushZoneState? zone) ? zone.AmbushDamageCount : 0;
 
         /// <summary>
+        /// 埋牌：把牌从手牌移进伏击区域、给区域层数与攻/防加成。
+        /// 手牌埋入走 BuryCardAction.ExecuteAction（全端执行同一份逻辑）；生成牌走 BuryGeneratedAsync。
+        /// `spendResources: false` 用于遗物驱动的免费埋入（「暗杀者」的回合开始自选），不扣能量/辉星。
+        /// </summary>
+        public static async Task BuryAsync(PlayerChoiceContext choiceContext, CardModel card, Player player, bool spendResources = true)
+        {
+            AmbushZoneState zone = For(player);
+            if (zone.IsFull || zone.IsCoolingDown || player.PlayerCombatState == null)
+            {
+                return;
+            }
+
+            if (spendResources)
+            {
+                // 埋牌同样要付费，冰封王座的"贷款"也在这里生效（能量不足时 hook 把耗能改成 0）。
+                // 但埋牌不走 AfterCardPlayed，自伤必须在这里补结算——否则贷款埋牌等于零代价
+                // （2026-09-23 用户报障）。返回值第 1 项 = 实际应付/花掉的能量，只有它真的是 0
+                // （贷款生效）才结算；非 0 说明是"付得起、按原价埋"。
+                (int energySpent, int _) = await card.SpendResources();
+                if (energySpent == 0)
+                {
+                    FrostThronePower? throne = player.Creature.GetPower<FrostThronePower>();
+                    if (throne != null)
+                    {
+                        await throne.SettleBuriedCostAsync(choiceContext, card);
+                    }
+                }
+            }
+            AmbushZoneUi.Prepare();
+            // 官方"手动出牌"流程负责把手牌 holder 正确释放（直接 RemoveFromCurrentPile 会让卡面残留），
+            // 但它会把牌塞进出牌堆并启动一个飞向屏幕中心的 tween。
+            await CardPileCmd.AddDuringManualCardPlay(card);
+            // 必须在 RemoveFromCurrentPile 之前找节点：CardModel.Pile 是"在 owner.Piles 里找包含自己的堆"
+            // 的计算属性，移出后 card.Pile 为 null，FindOnTable 直接返回 null，视觉就永远不执行。
+            NCard? node = NCard.FindOnTable(card, PileType.Play);
+            card.RemoveFromCurrentPile();
+            if (node != null && NCombatRoom.Instance != null)
+            {
+                node.PlayPileTween?.Kill();
+                node.PlayPileTween = null;
+                // 节点现在挂在 PlayContainer 里（AddDuringManualCardPlay 把它搬进去了），
+                // 我们要让它飞出容器去飞伏击堆按钮 → 先移出容器挂到 Ui 根上，保持当前世界坐标不变。
+                Vector2 worldPos = node.GlobalPosition;
+                Control parent = node.GetParent<Control>();
+                parent?.RemoveChildSafely(node);
+                NCombatRoom.Instance.Ui.AddChildSafely(node);
+                node.GlobalPosition = worldPos;
+
+                NCreature? creatureNode = NCombatRoom.Instance.GetCreatureNode(player.Creature);
+                Vector2 destination = AmbushZoneUi.GetCenter() ?? creatureNode?.GlobalPosition ?? node.GlobalPosition;
+                Tween tween = node.CreateTween().SetParallel();
+                tween.TweenProperty(node, "global_position", destination, 0.3f)
+                    .SetEase(Tween.EaseType.In).SetTrans(Tween.TransitionType.Cubic);
+                tween.TweenProperty(node, "scale", Vector2.One * 0.4f, 0.3f)
+                    .SetEase(Tween.EaseType.In).SetTrans(Tween.TransitionType.Cubic);
+                tween.TweenProperty(node, "modulate", StsColors.transparentBlack, 0.3f);
+                tween.Chain().TweenCallback(Callable.From(() =>
+                {
+                    if (GodotObject.IsInstanceValid(node))
+                    {
+                        NCombatRoom.Instance.Ui.AddChildSafely(ExhaustVfxCompat.CreateVfx(node));
+                        node.QueueFreeSafely();
+                    }
+                }));
+                tween.Play();
+                // 不 await：让动画 fire-and-forget，避免阻塞动作队列 0.3s
+            }
+            else if (node == null)
+            {
+                Log.Info("伏击区域：未找到埋牌卡面节点，跳过飞入动画");
+            }
+
+            zone.Pile.AddInternal(card);
+            MarkBuried(zone, card);
+            Log.Info($"伏击区域：玩家 {player.NetId} 埋入 {card.Id.Entry}（当前 {zone.Count}/{zone.Capacity}）");
+            await NotifyCountChangedAsync(choiceContext, player, 1);
+            // 永恒狩猎（金卡能力）：手牌埋入占掉一格"本回合免费埋牌"额度（生成牌埋入不占）
+            player.Creature.GetPower<EternalHuntPower>()?.NotifyBury();
+            // 能力牌埋入不提供额外收益：伏击区只有攻击牌（+力量）与技能牌（+敏捷）两类收益
+
+            await RecomputeBonusesAsync(choiceContext, player);
+            await SyncPowerAsync(choiceContext, player);
+            // 伏击本能（金卡能力）：本回合**首次**把牌加入区域 → 获得 1 点能量（每回合只结算一次，堆多少张都一样）
+            await KillerInstinctPower.NotifyBuriedAsync(choiceContext, player);
+            // 暗夜收割已改为"每回合开始看区域是否非空"（见 NightPatrolPower），埋入不再结算
+            AmbushZoneUi.Refresh();
+        }
+
+        /// <summary>
         /// 生成牌直接埋入（"设伏"等生成卡使用）：牌由 combatState.CreateCard 当场创建，从未进过手牌，
         /// 不扣费、不走手动出牌视觉。战后随战斗临时牌组一并销毁（若未被带出，ReturnBuriedCardsAsync
         /// 会把它移到战斗弃牌堆，同样不进 master deck）。
-        /// <para><paramref name="pileIndex" />：插入位置，-1 = 追加到末尾（默认），0 = 区域顶部
-        /// （「吞噬」的合体卡产物按设计稿要插到顶部，最先被兑现带出）。</para>
         /// </summary>
-        public static async Task<bool> BuryGeneratedAsync(PlayerChoiceContext choiceContext, Player player, CardModel card, string source = "生成牌", int pileIndex = -1)
+        public static async Task<bool> BuryGeneratedAsync(PlayerChoiceContext choiceContext, Player player, CardModel card, string source = "生成牌")
         {
             AmbushZoneState zone = For(player);
-            // v2：区域冷却语义降格为"不提供力敏"——入区照常，不再作为埋入闸门
-            if (zone.IsFull)
+            if (zone.IsFull || zone.IsCoolingDown)
             {
                 return false;
             }
 
-            zone.Pile.AddInternal(card, pileIndex);
+            zone.Pile.AddInternal(card);
             MarkBuried(zone, card);
             Log.Info($"伏击区域：{card.Id.Entry} 埋入（来源：{source}，当前 {zone.Count}/{zone.Capacity}）");
             await NotifyCountChangedAsync(choiceContext, player, 1);
-            await SiloPower.NotifyBuriedAsync(choiceContext, player);
             await RecomputeBonusesAsync(choiceContext, player);
             await SyncPowerAsync(choiceContext, player);
             // 伏击本能（金卡能力）：本回合**首次**把牌加入区域 → 获得 1 点能量（每回合只结算一次，堆多少张都一样）
@@ -354,8 +450,7 @@ namespace lingdawnpao.Core
         public static async Task<bool> BuryTopOfDrawPileAsync(PlayerChoiceContext choiceContext, Player player)
         {
             AmbushZoneState zone = For(player);
-            // v2：冷却只抑制力敏加成，不再拦埋入
-            if (zone.IsFull)
+            if (zone.IsFull || zone.IsCoolingDown)
             {
                 return false;
             }
@@ -381,8 +476,7 @@ namespace lingdawnpao.Core
         public static async Task<bool> BuryFromDiscardAsync(PlayerChoiceContext choiceContext, Player player, CardModel card)
         {
             AmbushZoneState zone = For(player);
-            // v2：冷却只抑制力敏加成，不再拦埋入
-            if (zone.IsFull)
+            if (zone.IsFull || zone.IsCoolingDown)
             {
                 return false;
             }
@@ -398,194 +492,34 @@ namespace lingdawnpao.Core
         }
 
         /// <summary>
-        /// 【v2 核心】打出结算后的**额度改道**入口，由遗物 <see cref="FrostFang" /> 的
-        /// <c>AfterCardPlayed</c> 钩子调用（双分支确认：CardModel.PlayAsync 在 AfterCardPlayed 之后
-        /// 才检查 `Pile.Type == PileType.Play` 决定去向——此时把卡挪进区域，原版收尾自动跳过）。
-        /// <para>改道五条件（全过才吞额度）：</para>
-        /// ① 非 <c>IsAutoPlay</c>——兑现带出的牌走弃牌堆（规则 4，保证牌堆循环）；
-        /// ② 是本人卡；
-        /// ③ 非能力牌 / 非消耗 / 非复制（复刻本体 GetResultPileTypeForCardPlay 的 None/Exhaust 分支）；
-        /// ④ 额度剩余 > 0；
-        /// ⑤ 区域未满。
-        /// </summary>
-        public static async Task TryDivertAfterPlayAsync(PlayerChoiceContext choiceContext, Player player, CardPlay cardPlay)
-        {
-            CardModel card = cardPlay.Card;
-            if (cardPlay.IsAutoPlay || card.Owner != player)
-            {
-                return;
-            }
-
-            // 复刻本体 GetResultPileTypeForCardPlay：能力牌与复制牌去向 None，消耗牌去向 Exhaust
-            if (card.Type == CardType.Power || card.IsDupe
-                || card.ExhaustOnNextPlay || card.Keywords.Contains(CardKeyword.Exhaust))
-            {
-                return;
-            }
-
-            AmbushZoneState zone = For(player);
-            if (zone.IsFull || zone.QuotaLeft <= 0)
-            {
-                return;
-            }
-
-            // 卡必须还在打牌堆（AfterCardPlayed 时机保证）——不在就说明被别的结算动过，放弃改道
-            if (card.Pile?.Type != PileType.Play)
-            {
-                Log.Info($"伏击区域：{card.Id.Entry} 结算后不在打牌堆，放弃额度改道");
-                return;
-            }
-
-            await BuryFromPlayAsync(choiceContext, player, card);
-        }
-
-        /// <summary>
-        /// 【v2 核心】把一张**结算完毕、还在打牌堆**的牌埋进伏击区域（额度改道的实际执行者）。
-        /// 与手牌埋入的区别：卡面节点挂在打牌区容器里，且原版收尾会被我们跳过（见
-        /// <see cref="TryDivertAfterPlayAsync" />），飞行动画完全自理。
-        /// </summary>
-        public static async Task BuryFromPlayAsync(PlayerChoiceContext choiceContext, Player player, CardModel card)
-        {
-            AmbushZoneState zone = For(player);
-            // 必须在 RemoveFromCurrentPile 之前找节点（card.Pile 是计算属性，移出后为 null）
-            NCard? node = NCard.FindOnTable(card, PileType.Play);
-            card.RemoveFromCurrentPile();
-            if (node != null && NCombatRoom.Instance != null)
-            {
-                node.PlayPileTween?.Kill();
-                node.PlayPileTween = null;
-                Vector2 worldPos = node.GlobalPosition;
-                Control? parent = node.GetParent<Control>();
-                parent?.RemoveChildSafely(node);
-                NCombatRoom.Instance.Ui.AddChildSafely(node);
-                node.GlobalPosition = worldPos;
-
-                NCreature? creatureNode = NCombatRoom.Instance.GetCreatureNode(player.Creature);
-                Vector2 destination = AmbushZoneUi.GetCenter() ?? creatureNode?.GlobalPosition ?? node.GlobalPosition;
-                Tween tween = node.CreateTween().SetParallel();
-                tween.TweenProperty(node, "global_position", destination, 0.3f)
-                    .SetEase(Tween.EaseType.In).SetTrans(Tween.TransitionType.Cubic);
-                tween.TweenProperty(node, "scale", Vector2.One * 0.4f, 0.3f)
-                    .SetEase(Tween.EaseType.In).SetTrans(Tween.TransitionType.Cubic);
-                tween.TweenProperty(node, "modulate", StsColors.transparentBlack, 0.3f);
-                tween.Chain().TweenCallback(Callable.From(() =>
-                {
-                    if (GodotObject.IsInstanceValid(node))
-                    {
-                        NCombatRoom.Instance.Ui.AddChildSafely(ExhaustVfxCompat.CreateVfx(node));
-                        node.QueueFreeSafely();
-                    }
-                }));
-                tween.Play();
-            }
-
-            zone.Pile.AddInternal(card);
-            MarkBuried(zone, card);
-            zone.QuotaUsed++;
-            Log.Info($"伏击区域：玩家 {player.NetId} 额度改道埋入 {card.Id.Entry}"
-                + $"（额度余 {zone.QuotaLeft}，当前 {zone.Count}/{zone.Capacity}）");
-            await NotifyCountChangedAsync(choiceContext, player, 1);
-            await SiloPower.NotifyBuriedAsync(choiceContext, player);
-            await RecomputeBonusesAsync(choiceContext, player);
-            await SyncPowerAsync(choiceContext, player);
-            await KillerInstinctPower.NotifyBuriedAsync(choiceContext, player);
-            AmbushZoneUi.Refresh();
-        }
-
-        /// <summary>
-        /// 【v2】**主动埋卡**：把手牌中的一张牌埋进伏击区域（「猎手布局」「伏击斩」「双线布置」、
-        /// 暗杀者遗物的回合开始自选）。不占每回合额度——超编的正当渠道是"花一张牌 + 做一个选择"。
-        /// 手牌卡面节点存在时播放飞入动画（联机对手的手牌没有节点，跳过视觉照常入区）。
-        /// </summary>
-        public static async Task<bool> BuryFromHandAsync(PlayerChoiceContext choiceContext, Player player, CardModel card)
-        {
-            AmbushZoneState zone = For(player);
-            if (zone.IsFull)
-            {
-                return false;
-            }
-
-            if (card.Pile?.Type != PileType.Hand)
-            {
-                Log.Info($"伏击区域：想把 {card.Id.Entry} 从手牌埋入，但它不在手牌（{card.Pile?.Type.ToString() ?? "null"}），跳过");
-                return false;
-            }
-
-            // 节点要在移出手牌堆之前抓（同 v1 BuryAsync 的教训：card.Pile 是计算属性）
-            NCard? node = NCard.FindOnTable(card, PileType.Hand);
-            card.RemoveFromCurrentPile();
-            if (node != null && NCombatRoom.Instance != null)
-            {
-                Vector2 worldPos = node.GlobalPosition;
-                Control? parent = node.GetParent<Control>();
-                parent?.RemoveChildSafely(node);
-                NCombatRoom.Instance.Ui.AddChildSafely(node);
-                node.GlobalPosition = worldPos;
-
-                NCreature? creatureNode = NCombatRoom.Instance.GetCreatureNode(player.Creature);
-                Vector2 destination = AmbushZoneUi.GetCenter() ?? creatureNode?.GlobalPosition ?? node.GlobalPosition;
-                Tween tween = node.CreateTween().SetParallel();
-                tween.TweenProperty(node, "global_position", destination, 0.3f)
-                    .SetEase(Tween.EaseType.In).SetTrans(Tween.TransitionType.Cubic);
-                tween.TweenProperty(node, "scale", Vector2.One * 0.4f, 0.3f)
-                    .SetEase(Tween.EaseType.In).SetTrans(Tween.TransitionType.Cubic);
-                tween.TweenProperty(node, "modulate", StsColors.transparentBlack, 0.3f);
-                tween.Chain().TweenCallback(Callable.From(() =>
-                {
-                    if (GodotObject.IsInstanceValid(node))
-                    {
-                        NCombatRoom.Instance.Ui.AddChildSafely(ExhaustVfxCompat.CreateVfx(node));
-                        node.QueueFreeSafely();
-                    }
-                }));
-                tween.Play();
-            }
-
-            return await BuryGeneratedAsync(choiceContext, player, card, "手牌主动埋入");
-        }
-
-        /// <summary>
-        /// 【v2】满仓成长：回合结束（遗物 AfterSideTurnEnd 调用）时若区域已满——
-        /// 上限 +1，并由玩家**自选**区域中的一张牌烧掉（进消耗堆，移出本场战斗）。
+        /// "打出时既带出旧牌、又往区域里生成新牌"的**生成件**（「设伏」「捕猎」「永恒呼吸」「扑击」）
+        /// 的统一结算顺序：① 先看伏击区现状 → ② 把**打出前就在区域里**的旧牌按 FIFO 带出 → ③ 最后才生成新牌。
         /// <para>
-        /// **自选 instead of 固定烧最早的**（2026-09-26 用户定）：能进区域的都能烧——
-        /// 衍生 token、诅咒、状态牌都是合法燃料；雪灾的晕眩填满从此是"燃料补给"而非负面。
-        /// 玩家在选牌界面自己权衡烧哪张（保优质停牌、烧垃圾），取消选择则本回合不成长。
+        /// **为什么由卡自己发起、而不是交给遗物**：遗物 <see cref="FrostFang.AfterCardPlayed" /> 挂在出牌
+        /// **之后**，那一刻新牌已经躺在区域里了——它照 FIFO 取"最早的那张"，区域原本为空时带出的就是
+        /// 这张卡自己刚生成的暗袭/猎物/呼吸/真牌（2026-09-22 用户报障"这个尽量别带"）。当时为此把整张卡
+        /// 豁免，代价是**连正常的旧牌也一起带不出来了**（2026-09-23 用户报障"修改设伏之后，设伏不能正常
+        /// 带出普通卡了"）。改成"卡内先带出 + 遗物整张豁免"后两个诉求同时成立：旧牌照常兑现，新牌老实留下。
+        /// </para>
+        /// <para>
+        /// 伏击形态下不做事（区域在**收集**，不是倾泻；何况此时出牌本来就被拦成埋牌）。
+        /// 区域为空 / 冷却中由 <see cref="BringOutFirstAsync" /> 自行返回 null，这里不必判。
+        /// 自动打出（被带出的埋伏牌经 AutoPlay 打出）同样生效——那时它就是一张普通牌，走同一套顺序。
         /// </para>
         /// </summary>
-        public static async Task AfterTurnEndGrowthAsync(PlayerChoiceContext choiceContext, Player player, LocString burnPrompt)
+        public static async Task BringOutBeforeGenerateAsync(PlayerChoiceContext choiceContext, Creature? target, Player player)
         {
-            AmbushZoneState zone = For(player);
-            if (!zone.IsFull)
+            if (!For(player).IsAmbushMode)
             {
-                return;
+                await BringOutFirstAsync(choiceContext, target, player);
             }
-
-            Log.Info("伏击区域：满仓成长——弹出选牌，烧一张换上限 +1");
-            CardModel? chosen = await SelectOneAsync(choiceContext, player, burnPrompt);
-            if (chosen == null)
-            {
-                Log.Info("伏击区域：玩家未选择烧牌，本回合不成长");
-                return;
-            }
-
-            if (!await ExhaustChosenAsync(choiceContext, player, chosen))
-            {
-                return;
-            }
-
-            Log.Info($"伏击区域：满仓成长——上限 +1，消耗 {chosen.Id.Entry}");
-            await PowerCmd.Apply<AmbushCapacityPower>(
-                new ThrowingPlayerChoiceContext(), player.Creature, 1, player.Creature, null);
-            await RefreshZoneAsync(choiceContext, player);
         }
 
         /// <summary>带出最前的一张伏击牌并结算。返回被带出的牌（区域为空时返回 null），供调用方按类型决定后续。</summary>
         public static async Task<CardModel?> BringOutFirstAsync(PlayerChoiceContext choiceContext, Creature? target, Player player)
         {
             AmbushZoneState zone = For(player);
-            // v2：冷却降格为"不提供力敏"，带出照常
-            if (zone.Pile.Cards.Count == 0)
+            if (zone.Pile.Cards.Count == 0 || zone.IsCoolingDown)
             {
                 return null;
             }
@@ -595,8 +529,6 @@ namespace lingdawnpao.Core
             bool veteran = IsReady(zone, card);
             zone.Pile.RemoveInternal(card);
             zone.BuriedTurn.Remove(card);
-            // 「狩猎图鉴」：兑现种类记账（按 Id 去重，同种牌多次兑现只记一种）
-            zone.CashedOutKinds.Add(card.Id.Entry);
             // 「追猎」：场上有被追猎的敌人时，带出的牌一律改打它（否则跟随本回合打出那张牌的目标）
             target = TrackedPower.FindTrackedTarget(player) ?? target;
             // 目标已经不在了（被上一张带出的牌打死 / 追猎目标死亡 / 原本就没指定目标）：
@@ -616,12 +548,6 @@ namespace lingdawnpao.Core
             // 伏击本能（金卡能力）：本回合**首次**带出牌 → 抽等同层数的牌（每回合只结算一次，
             // 「倾泄」一次带出一串也只算第一张——防刷闸门，见 KillerInstinctPower）
             await KillerInstinctPower.NotifyBroughtOutAsync(choiceContext, player);
-            // 遗物「伏击者」（v2）：本回合首次兑现带出后抽 1 张牌
-            FrostFang? relic = player.GetRelic<FrostFang>();
-            if (relic != null)
-            {
-                await relic.NotifyFirstCashOutAsync(choiceContext, player);
-            }
 
             // 带出牌视觉完全自理：skipCardPileVisuals 让引擎全程不生成/不移动卡面
             // （否则本体会在出牌区中心凭空生成一张并停在那里整个结算期，就是用户嫌丑的"卡在中间"），
@@ -784,8 +710,8 @@ namespace lingdawnpao.Core
         }
 
         /// <summary>
-        /// 同步"费用随伏击状态变化"的卡牌（「有备而来」「守住」按区域张数）。
-        /// 调用点：区域每次变化（RecomputeBonusesAsync 末尾）。
+        /// 同步"费用随伏击状态变化"的卡牌（「有备而来」「守住」按区域张数、「磨爪」按伏击形态）。
+        /// 两个调用点：区域每次变化（RecomputeBonusesAsync 末尾）与右键切换伏击形态（ToggleAmbushAction）。
         /// </summary>
         public static void SyncCardCosts(Player player)
         {
@@ -848,6 +774,30 @@ namespace lingdawnpao.Core
         }
 
         /// <summary>
+        /// 只消耗伏击区域**最前面（最先加入）**的一张牌，返回那张牌（区域为空时返回 null）。
+        /// 「霜牙」用：2026-09-25 用户把"吞掉整片区域"改成"只吞首张"，于是它只吃第一张牌的伤害。
+        /// 与 <see cref="ExhaustAllAsync" /> 同一约定：**本方法不重算增益**，调用方结算完自身效果后再调
+        /// <see cref="RefreshZoneAsync" />——让这张牌本身的 +力量/+敏捷在结算期间仍然生效。
+        /// </summary>
+        public static async Task<CardModel?> ExhaustFirstAsync(PlayerChoiceContext choiceContext, Player player)
+        {
+            AmbushZoneState zone = For(player);
+            if (zone.Pile.Cards.Count == 0)
+            {
+                return null;
+            }
+
+            CardModel card = zone.Pile.Cards[0];
+            zone.Pile.RemoveInternal(card);
+            zone.BuriedTurn.Remove(card);
+            Log.Info($"伏击区域：玩家 {player.NetId} 消耗首张埋牌 {card.Id.Entry}");
+            // 区域里的牌不在桌面节点上，跳过视觉 + 手动补发事件（详见 ExhaustCardWithoutVisualsAsync）
+            await ExhaustCardWithoutVisualsAsync(choiceContext, card, player);
+            await NotifyCountChangedAsync(choiceContext, player, -1);
+            return card;
+        }
+
+        /// <summary>
         /// 让玩家**自选**伏击区域里的一张牌（「霜牙」烧牌用），返回被选中的那张；区域为空返回 null。
         /// <para>
         /// ⚠️ 用 <c>CardSelectCmd.FromSimpleGrid</c>（收一串 CardModel 的通用选牌入口）而不是
@@ -858,10 +808,9 @@ namespace lingdawnpao.Core
         /// </para>
         /// </summary>
         /// <param name="prompt">选牌界面的提示语（由调用方给：卡牌传 <c>SelectionScreenPrompt</c>）。</param>
-        /// <param name="filter">候选过滤（null = 区域所有牌）。「吞噬」用来限定"第二张材料与基底同类型"。</param>
-        public static async Task<CardModel?> SelectOneAsync(PlayerChoiceContext choiceContext, Player player, LocString prompt, Func<CardModel, bool>? filter = null)
+        public static async Task<CardModel?> SelectOneAsync(PlayerChoiceContext choiceContext, Player player, LocString prompt)
         {
-            List<CardModel> candidates = For(player).Cards.Where(card => filter?.Invoke(card) ?? true).ToList();
+            List<CardModel> candidates = For(player).Cards.ToList();
             if (candidates.Count == 0)
             {
                 return null;
@@ -910,8 +859,7 @@ namespace lingdawnpao.Core
         /// 只影响本地 UI（事件的其他订阅者是本地的牌堆按钮），联机下对端没有订户、无副作用。
         /// </para>
         /// </summary>
-        /// <remarks>internal：「吞噬」引擎重放技能材料后也要走"静默消耗 + 补角标"收尾（见 <see cref="FusionEngine" />）。</remarks>
-        internal static async Task ExhaustCardWithoutVisualsAsync(PlayerChoiceContext choiceContext, CardModel card, Player player)
+        private static async Task ExhaustCardWithoutVisualsAsync(PlayerChoiceContext choiceContext, CardModel card, Player player)
         {
             await CardCmd.Exhaust(choiceContext, card, causedByEthereal: false, skipVisuals: true);
             PileType.Exhaust.GetPile(player).InvokeCardAddFinished();
@@ -958,8 +906,7 @@ namespace lingdawnpao.Core
         /// 伏击区牌数发生变化时调用（「反复横跳」）：按变化量给玩家格挡。
         /// 埋入 / 生成埋入传 +1，带出传 -1，整片清空传 -张数；**战斗结束归还时不调用**（战斗已结束）。
         /// </summary>
-        /// <remarks>internal：「吞噬」引擎把两材料移出区域时要发 -2 计数（见 <see cref="FusionEngine" />）。</remarks>
-        internal static async Task NotifyCountChangedAsync(PlayerChoiceContext choiceContext, Player player, int delta)
+        private static async Task NotifyCountChangedAsync(PlayerChoiceContext choiceContext, Player player, int delta)
         {
             if (delta == 0)
             {
@@ -1013,8 +960,6 @@ namespace lingdawnpao.Core
             zone.IsOverloaded = false;
             zone.IsCoolingDown = false;
             zone.BuriedTurn.Clear();
-            zone.CashedOutKinds.Clear();
-            zone.QuotaUsed = 0;
             await RecomputeBonusesAsync(new ThrowingPlayerChoiceContext(), player);
             await SyncPowerAsync(new ThrowingPlayerChoiceContext(), player);
             PlayingFromAmbush.Clear();

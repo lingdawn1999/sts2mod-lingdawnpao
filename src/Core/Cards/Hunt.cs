@@ -17,8 +17,9 @@ namespace lingdawnpao.Core
     /// **2026-09-25 用户从"填满"改成"固定 3 张"**：原实现是"一直生成到区域满"，
     /// 区域被「张网以待」「扩张」扩容后一次能铺 5 张以上，配上刚削过的「猎物」依旧过量；
     /// 改成固定张数后，扩容只买到"能存更多"而不再买"一次铺更多"。
-    /// 区域已满时无可埋位置，打出即空放（与「设伏」一致，不做额外保护）。
-    /// **结算顺序（v2）**：直接填猎物——v2 普通出牌不再自动带出，埋进去就老实待着。
+    /// 区域已满 / 冷却时无可埋位置，打出即空放（与「设伏」一致，不做额外保护）。
+    /// **结算顺序**：先带出区域里的**旧牌**，最后才填猎物——刚生成的猎物不会被当场带出打掉
+    /// （2026-09-23 用户定案，详见 `AmbushZone.BringOutBeforeGenerateAsync`）。
     /// </summary>
     public sealed class Hunt : CardModel, IAmbushBonusCard
     {
@@ -44,11 +45,14 @@ namespace lingdawnpao.Core
             await CreatureCmd.TriggerAnim(Owner.Creature, "Cast", Owner.Character.CastAnimDelay);
 
             AmbushZoneState zone = AmbushZone.For(Owner);
+            // 结算顺序（2026-09-23 用户定案）：先带出区域里的**旧牌**，最后才填猎物。
+            // 遗物钩子对本卡整张豁免，带出必须由本卡自己发起（详见 AmbushZone.BringOutBeforeGenerateAsync）。
+            await AmbushZone.BringOutBeforeGenerateAsync(choiceContext, cardPlay.Target, Owner);
 
-            // 区域已满时埋不进任何牌，先判掉，避免凭空造出无处安放的衍生牌
+            // 冷却（过载代价）时埋不进任何牌，先判掉，避免凭空造出无处安放的衍生牌
             for (int i = 0; i < DynamicVars.Repeat.IntValue; i++)
             {
-                if (zone.IsFull)
+                if (zone.IsFull || zone.IsCoolingDown)
                 {
                     break;
                 }
