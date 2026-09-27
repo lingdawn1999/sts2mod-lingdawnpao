@@ -400,8 +400,14 @@ namespace lingdawnpao.Core
             MarkBuried(zone, card);
             Log.Info($"伏击区域：玩家 {player.NetId} 埋入 {card.Id.Entry}（当前 {zone.Count}/{zone.Capacity}）");
             await NotifyCountChangedAsync(choiceContext, player, 1);
-            // 永恒狩猎（金卡能力）：手牌埋入占掉一格"本回合免费埋牌"额度（生成牌埋入不占）
-            player.Creature.GetPower<EternalHuntPower>()?.NotifyBury();
+            // 永恒狩猎（金卡能力）：只有**手动埋**（spendResources: true，要付费的那种）才占
+            // "本回合免费埋牌"额度——额度存在的意义就是免掉这笔费用，效果埋入
+            // （暗杀者遗物 /「雪原疾行」等 spendResources: false 的路径）本来就不花钱，
+            // 不该白吃额度（2026-09-27 用户指出）。生成牌埋入（BuryGeneratedAsync）本就不经这里。
+            if (spendResources)
+            {
+                player.Creature.GetPower<EternalHuntPower>()?.NotifyBury();
+            }
             // 能力牌埋入不提供额外收益：伏击区只有攻击牌（+力量）与技能牌（+敏捷）两类收益
 
             await RecomputeBonusesAsync(choiceContext, player);
