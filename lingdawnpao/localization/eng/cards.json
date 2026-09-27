@@ -149,7 +149,7 @@
   "BLIZZARD.title": "Blizzard",
   "BLIZZARD.description": "Apply {FrostbitePower:diff()} [gold]Frostbite[/gold] to ALL enemies.\n[gold]Ambush[/gold]: Apply {AmbushBonus:diff()} additional.",
   "SNOW_CALAMITY.title": "Snow Calamity",
-  "SNOW_CALAMITY.description": "Apply {FrostbitePower:diff()} [gold]Frostbite[/gold] to ALL enemies. [gold]Exhaust[/gold] all cards in your [gold]Ambush zone[/gold], then fill your [gold]Ambush zone[/gold] with [gold]Dazed[/gold].",
+  "SNOW_CALAMITY.description": "Apply {FrostbitePower:diff()} [gold]Frostbite[/gold] to ALL enemies. Add 3 [gold]Dazed[/gold] into your [gold]Ambush zone[/gold].",
   "SPINOSAURUS_FORM.title": "Spinosaurus Form",
   "SPINOSAURUS_FORM.description": "Remove all [gold]Frostbite[/gold] from yourself. For each stack removed, apply 1 [gold]Rend[/gold] to that enemy.",
   "EARTHSHAKER_PALM.title": "Lao Wu's Earthshaker Palm",

@@ -149,7 +149,7 @@
   "BLIZZARD.title": "暴风雪",
   "BLIZZARD.description": "给予所有敌人{FrostbitePower:diff()}层[gold]冰冻[/gold]。\n[gold]埋伏[/gold]：额外给予{AmbushBonus:diff()}层。",
   "SNOW_CALAMITY.title": "雪灾",
-  "SNOW_CALAMITY.description": "给予所有敌人{FrostbitePower:diff()}层[gold]冰冻[/gold]。[gold]消耗[/gold]你的[gold]伏击区域[/gold]中的所有牌，然后用[gold]晕眩[/gold]填满你的[gold]伏击区域[/gold]。",
+  "SNOW_CALAMITY.description": "给予所有敌人{FrostbitePower:diff()}层[gold]冰冻[/gold]。将3张[gold]晕眩[/gold]加入你的[gold]伏击区域[/gold]。",
   "SPINOSAURUS_FORM.title": "棘背龙形态",
   "SPINOSAURUS_FORM.description": "移除你身上的所有[gold]冰冻[/gold]，每移除1层，给予该敌人1层[gold]撕裂[/gold]。",
   "EARTHSHAKER_PALM.title": "老吴撼地掌",

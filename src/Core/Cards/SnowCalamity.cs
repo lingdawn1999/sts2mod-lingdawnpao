@@ -13,12 +13,12 @@ using MegaCrit.Sts2.Core.Models.Cards;
 namespace lingdawnpao.Core
 {
     /// <summary>
-    /// 雪灾：**2 费蓝卡（Uncommon）技能**。**对[gold]所有敌人[/gold]**给予 14 层冰冻（升级 20）→
-    /// **消耗你的伏击区域中的所有牌** → **用「晕眩」填满伏击区域**。
+    /// 雪灾：**1 费蓝卡（Uncommon）技能**。**对[gold]所有敌人[/gold]**给予 14 层冰冻（升级 20）→
+    /// **将 3 张「晕眩」加入伏击区域**。
     /// 定位：兑现器的**自毁型**——「重整计划」把区域换成手牌与能量、「收网」把区域换成伤害，
-    /// 本卡把区域换成"一次性爆发 + 一片废墟"：14 层挂冰是全 mod 最高的单卡挂冰
-    /// （对照：覆霜 1 费白挂 5、豹咬 2 费白挂 7、暴风雪 2 费蓝挂 8），代价是**亲手拆掉自己的伏击线**，
-    /// 剩下的格子被不可打出的晕眩填满，在清掉之前既埋不进新牌、也吃不到任何力/敏加成。
+    /// 本卡把区域换成"一次性爆发 + 三格废墟"：14 层挂冰是全 mod 最高的单卡挂冰
+    /// （对照：覆霜 1 费白挂 5、豹咬 2 费白挂 7、暴风雪 2 费蓝挂 8），代价是 3 张不可打出的晕眩占格，
+    /// 在清掉之前既少埋牌、也吃不到那几格的力/敏加成。
     /// **挂冰即伤害**（可被格挡），所以"挂 14 层"本身就是扎实的输出。
     /// <para>
     /// **2026-09-24 用户改回群伤（单体 → 所有敌人）**：原话"雪灾还是调整会对群吧，毕竟代价真的很大"——
@@ -58,13 +58,13 @@ namespace lingdawnpao.Core
     /// 因此不提供力量/敏捷（与"伏击区只给攻/技加成"的既有规则一致）。
     /// **被带出时不会崩**：晕眩自带 `CardKeyword.Unplayable`，`CardCmd.AutoPlay` 会把不可打出的牌
     /// 直接移进结果堆（弃牌堆）而不执行——所以「倾泄」/带出路径遇到晕眩只是白扔一张牌，属设计内的清偿成本。
-    /// **填到当前上限**（基础 3 + 「张网以待」「扩张」的加成 + 遗物「暗杀者」），上限越高填得越多：
-    /// 自锁更重，但也更能喂「反复横跳」的按张数格挡。
-    /// 结算顺序照用户规格：**先挂冰 → 再清空 → 最后填晕眩**；清空后按既有约定调 `RefreshZoneAsync`
-    /// 重算力/敏（此时区域已换成晕眩，加成归零）。
-    /// **遗物对本卡整张豁免**（`FrostFang.AfterCardPlayed`）：区域已被自己清空，没有旧牌可带出，
-    /// 但遗物若照常触发就会立刻带走一张刚填进去的晕眩，把"填满"变成只填 2 张——所以这里只豁免、
-    /// **不**做卡内带出。
+    /// **不清空区域、固定填 3 张晕眩**（2026-09-27 用户定稿）：惩罚与上限解耦——上限硬顶 9 后
+    /// "填满"的自锁随上限无界变重，对不玩伏击的构筑是过罚；固定 3 张回到原定价量级。
+    /// **也不烧区域**：玩家能控好伏击区（留空格接晕眩、及时清偿占格）本身就是奖励之一；
+    /// 区域已满时晕眩埋不进直接不生成。结算顺序：**先挂冰 → 再填晕眩**。
+    /// **遗物对本卡整张豁免**（`FrostFang.AfterCardPlayed`）：刚填的晕眩不能被遗物的 FIFO
+    /// 立刻带走（否则"3 张"变 2 张）——带出已由卡内先做（BringOutBeforeGenerateAsync），
+    /// 遗物这边整张豁免。
     /// </para>
     /// </summary>
     public sealed class SnowCalamity : CardModel, ILingdawnpaoCard
@@ -88,17 +88,17 @@ namespace lingdawnpao.Core
 
         protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
         {
-            // 群伤挂冰走**批量入口**（照「霜原」）：逐敌调单目标版会让「雪隐」按敌人数给格挡，
+            // 先带出旧牌再填晕眩（蓄能/雪原疾行/翻雪同款：防遗物钩子事后带走刚填的晕眩）
+            await AmbushZone.BringOutBeforeGenerateAsync(choiceContext, cardPlay.Target, Owner);
+
             // 与"每次结算只给一次"的口径冲突。先取快照——挂冰伤害可能打死敌人。
             await FrostbitePower.ApplyFrostToAllAsync(choiceContext, CombatState!.HittableEnemies.ToList(),
                 DynamicVars["FrostbitePower"].BaseValue, Owner.Creature, this);
 
-            await AmbushZone.ExhaustAllAsync(choiceContext, Owner);
-
-            // 填到上限：循环条件先判满/冷却，避免多造一张孤儿牌。
-            // 冷却中（「过载」的代价）BuryGeneratedAsync 一律拒绝，这里直接跳过填充。
+            // 固定填 3 张晕眩（2026-09-27 用户定稿）：**不清空伏击区域**——玩家控好自己伏击区
+            //（留好空格接晕眩 / 处理占格）本身就是奖励之一；区域已满时埋不进，晕眩直接不生成。
             AmbushZoneState zone = AmbushZone.For(Owner);
-            while (!zone.IsFull && !zone.IsCoolingDown)
+            for (int i = 0; i < 3 && !zone.IsCoolingDown; i++)
             {
                 Dazed dazed = CombatState!.CreateCard<Dazed>(Owner);
                 if (!await AmbushZone.BuryGeneratedAsync(choiceContext, Owner, dazed))

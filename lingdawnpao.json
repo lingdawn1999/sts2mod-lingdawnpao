@@ -3,7 +3,7 @@
   "name": "芝士雪豹",
   "author": "zhishixuebao",
   "description": "自定义角色：芝士雪豹。核心机制：伏击者遗物切换伏击形态，埋牌蓄力、倾泻引爆。",
-  "version": "v0.1.10",
+  "version": "v0.1.11",
   "min_game_version": "0.107.1",
   "has_pck": true,
   "has_dll": true,
