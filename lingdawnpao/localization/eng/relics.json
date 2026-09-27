@@ -13,6 +13,9 @@
   "FROSTBELL.description": "The first time you apply [gold]Frostbite[/gold] each turn, draw 1 card.",
   "FROSTBELL.flavor": "\"The bell sweeps across the snowfield; no prey escapes it.\"",
   "SNOWBALL_POUCH.title": "Snowball Pouch",
-  "SNOWBALL_POUCH.description": "At the start of each turn, add 1 [gold]Snowball[/gold] into your hand.",
-  "SNOWBALL_POUCH.flavor": "\"Always keep one loaded.\""
+  "SNOWBALL_POUCH.description": "Your [gold]Snowball[/gold] and [gold]Big Snowball[/gold] apply 2 additional [gold]Frostbite[/gold].",
+  "SNOWBALL_POUCH.flavor": "\"Every throw is packed harder.\"",
+  "CAT_SNACK.title": "Cat Snack",
+  "CAT_SNACK.description": "The first time you add a card into your [gold]Ambush zone[/gold] each combat, draw 1 card.",
+  "CAT_SNACK.flavor": "\"A little something before the hunt.\""
 }

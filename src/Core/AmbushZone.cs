@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Godot;
+using lingdawnpao.Core.Relics;
 using MegaCrit.Sts2.Core.CardSelection;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Combat;
@@ -421,6 +422,8 @@ namespace lingdawnpao.Core
             await SyncPowerAsync(choiceContext, player);
             // 伏击本能（金卡能力）：本回合**首次**把牌加入区域 → 获得 1 点能量（每回合只结算一次，堆多少张都一样）
             await KillerInstinctPower.NotifyBuriedAsync(choiceContext, player);
+            // 小零食（遗物）：本场战斗首次埋牌 → 抽 1 张牌
+            await CatSnack.NotifyBuriedAsync(choiceContext, player);
             // 暗夜收割已改为"每回合开始看区域是否非空"（见 NightPatrolPower），埋入不再结算
             AmbushZoneUi.Refresh();
         }
@@ -446,6 +449,8 @@ namespace lingdawnpao.Core
             await SyncPowerAsync(choiceContext, player);
             // 伏击本能（金卡能力）：本回合**首次**把牌加入区域 → 获得 1 点能量（每回合只结算一次，堆多少张都一样）
             await KillerInstinctPower.NotifyBuriedAsync(choiceContext, player);
+            // 小零食（遗物）：本场战斗首次埋牌 → 抽 1 张牌
+            await CatSnack.NotifyBuriedAsync(choiceContext, player);
             // 暗夜收割已改为"每回合开始看区域是否非空"（见 NightPatrolPower），埋入不再结算
             AmbushZoneUi.Refresh();
             return true;

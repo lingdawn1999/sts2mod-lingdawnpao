@@ -83,6 +83,14 @@ namespace lingdawnpao.Core
                     stacks += carnival.Amount - 1m;
                     await PowerCmd.ModifyAmount(new ThrowingPlayerChoiceContext(), carnival, 1m, applier, cardSource);
                 }
+
+                // 「雪球袋」（遗物，2026-09-27 用户定稿：供弹→增伤）：雪球/大雪球造成的冰冻层数 +2。
+                // 只认雪球系 cardSource——自动打出雪球的来源（发射器/打雪仗/雪场）同样吃加成；
+                // 自挂冰（applier=null）与其它卡牌的挂冰不吃。
+                if (cardSource is Snowball or BigSnowball && applier.Player?.GetRelic<SnowballPouch>() != null)
+                {
+                    stacks += 2m;
+                }
             }
 
             FrostbitePower? power = await PowerCmd.Apply<FrostbitePower>(choiceContext, target, stacks, applier, cardSource);

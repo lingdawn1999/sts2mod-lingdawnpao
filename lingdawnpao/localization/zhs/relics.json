@@ -13,6 +13,9 @@
   "FROSTBELL.description": "每回合你首次造成[gold]冰冻[/gold]时，抽1张牌。",
   "FROSTBELL.flavor": "“铃声掠过雪原，猎物无所遁形。”",
   "SNOWBALL_POUCH.title": "雪球袋",
-  "SNOWBALL_POUCH.description": "每回合开始时，将1张[gold]雪球[/gold]加入你的手牌。",
-  "SNOWBALL_POUCH.flavor": "“永远备着一发。”"
+  "SNOWBALL_POUCH.description": "你的[gold]雪球[/gold]与[gold]大雪球[/gold]造成的[gold]冰冻[/gold]层数+2。",
+  "SNOWBALL_POUCH.flavor": "“每一发都压得更实。”",
+  "CAT_SNACK.title": "小零食",
+  "CAT_SNACK.description": "每场战斗当你首次将牌加入[gold]伏击区域[/gold]时，抽1张牌。",
+  "CAT_SNACK.flavor": "“开饭前先来一口。”"
 }

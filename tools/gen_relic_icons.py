@@ -110,10 +110,27 @@ def paint_vape(d, s):
     d.ellipse([46, 34, 62, 50], fill=WHITE, outline=NAVY, width=5)
 
 
+def paint_cat_snack(d, s):
+    """小零食：一根小鱼干（鱼形 + 尾巴 + 缺口咬痕）。"""
+    w = 14
+    # 鱼身
+    d.ellipse([52, 100, 178, 176], fill=CREAM, outline=NAVY, width=w)
+    # 鱼尾
+    d.polygon([(170, 138), (216, 104), (216, 172)], fill=CREAM, outline=NAVY, width=w)
+    # 咬痕（右上缺口）
+    d.ellipse([92, 84, 132, 118], fill=(0, 0, 0, 0))
+    # 眼睛
+    d.ellipse([76, 126, 92, 142], fill=NAVY)
+    # 鱼身纹
+    d.arc([96, 116, 150, 168], 200, 340, fill=ICE_DARK, width=8)
+    d.arc([124, 112, 172, 160], 200, 340, fill=ICE_DARK, width=8)
+
+
 if __name__ == "__main__":
     make_relic("cozy_pelt", paint_cozy_pelt)
     make_relic("frostbell", paint_frostbell)
     make_relic("snowball_pouch", paint_snowball_pouch)
+    make_relic("cat_snack", paint_cat_snack)
     make_power("swarm_ambush_grant_power", paint_swarm_grant)
     make_power("vape_power", paint_vape)
     print("done.")
