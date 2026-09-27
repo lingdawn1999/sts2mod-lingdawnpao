@@ -105,6 +105,7 @@ namespace lingdawnpao.Core
 
                 // 「十万埋伏」的伤害成长按"本场战斗"计，进战斗必须归零（重复进战斗时同理）
                 zone.AmbushDamageCount = 0;
+                zone.PowerCapacityUsedThisTurn = false;
             }
 
             // 挂上伏击区上限能力（用户 2026-09-23 要求"开局就有 buff 提示伏击区上限"）：
@@ -146,6 +147,9 @@ namespace lingdawnpao.Core
                 return;
             }
 
+            // 新回合重置「首次使用能力牌」标记（2026-09-27 上限新规则，见 AfterCardPlayed）
+            AmbushZone.For(player).PowerCapacityUsedThisTurn = false;
+
             await AmbushStance.EnsureInHandAsync(player);
         }
 
@@ -176,8 +180,29 @@ namespace lingdawnpao.Core
         public override async Task AfterCardPlayed(PlayerChoiceContext choiceContext, CardPlay cardPlay)
         {
             Player? owner = Owner;
-            if (owner == null || cardPlay.IsAutoPlay
-                || cardPlay.Card is TigerCombo or SetAmbush or Hunt or EternalBreath or BodyPounce or SnowCalamity or Regroup or Trove or SnowballTechnique)
+            if (owner == null || cardPlay.IsAutoPlay)
+            {
+                return;
+            }
+
+            AmbushZoneState zone = AmbushZone.For(owner);
+
+            // **每回合首次使用能力牌 → 上限+1**（2026-09-27 新规则）：
+            // 只认手动打出的能力牌（带出自动打出的 IsAutoPlay 已在上面拦掉）；
+            // 伏击形态下埋掉的能力牌不走出牌流程、不进本钩子，自然也不算"使用"。
+            // 张网以待/扩张之外的普通能力牌（姿态牌、凝寒等）也能触发——能力牌打出自带扩容价值。
+            if (cardPlay.Card.Type == CardType.Power && cardPlay.Card.Owner == owner
+                && !zone.PowerCapacityUsedThisTurn)
+            {
+                zone.PowerCapacityUsedThisTurn = true;
+                await PowerCmd.Apply<AmbushCapacityPower>(choiceContext, owner.Creature, 1, owner.Creature, null);
+                Log.Info($"伏击区域：本回合首次使用能力牌，上限提升至 {zone.Capacity}");
+                Flash();
+                AmbushZoneUi.Refresh();
+            }
+
+            // ── 以下为"非伏击形态带出"逻辑，豁免名单与口径见下方原注释 ──
+            if (cardPlay.Card is TigerCombo or SetAmbush or Hunt or EternalBreath or BodyPounce or SnowCalamity or Regroup or Trove or SnowballTechnique)
             {
                 return;
             }
@@ -189,7 +214,6 @@ namespace lingdawnpao.Core
                 return;
             }
 
-            AmbushZoneState zone = AmbushZone.For(owner);
             if (zone.IsAmbushMode || zone.Count == 0)
             {
                 return;

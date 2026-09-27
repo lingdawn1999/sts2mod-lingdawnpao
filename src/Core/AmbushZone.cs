@@ -90,6 +90,13 @@ namespace lingdawnpao.Core
         public bool IsCoolingDown { get; set; }
 
         /// <summary>
+        /// 本回合是否已触发过「**每回合首次使用能力牌 → 上限+1**」（2026-09-27 新规则）。
+        /// 由 <see cref="FrostFang.BeforeHandDraw" /> 每回合重置、
+        /// <see cref="FrostFang.AfterCardPlayed" /> 判定并置位（只认手动打出的能力牌）。
+        /// </summary>
+        public bool PowerCapacityUsedThisTurn { get; set; }
+
+        /// <summary>
         /// **本场战斗中，你的伏击牌造成过伤害的次数**（「十万埋伏」的伤害成长依据）。
         /// 由 <see cref="FrostFang" /> 在 <c>AfterDamageGiven</c> 里累加、进战斗时归零。
         /// 计的是**伤害结算次数**（多段攻击 = 多次），口径与旧「十万埋伏」能力的触发口径一致。

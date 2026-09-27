@@ -1,7 +1,7 @@
 {
   "AMBUSH_CAPACITY_POWER.title": "伏击区域上限",
-  "AMBUSH_CAPACITY_POWER.description": "你的[gold]伏击区域[/gold]上限等于本能力的层数。",
-  "AMBUSH_CAPACITY_POWER.smartDescription": "你的[gold]伏击区域[/gold]上限为[blue]{Amount}[/blue]。",
+  "AMBUSH_CAPACITY_POWER.description": "你的[gold]伏击区域[/gold]上限等于本能力的层数。每回合首次使用[gold]能力[/gold]牌时，上限+1。",
+  "AMBUSH_CAPACITY_POWER.smartDescription": "你的[gold]伏击区域[/gold]上限为[blue]{Amount}[/blue]；每回合首次使用[gold]能力[/gold]牌时上限+1。",
   "AMBUSH_ZONE_POWER.title": "伏击区域",
   "AMBUSH_ZONE_POWER.description": "你的[gold]伏击区域[/gold]中有牌。攻击牌提供[blue]1[/blue]点[gold]力量[/gold]，技能牌提供[blue]1[/blue]点[gold]敏捷[/gold]；能力牌不提供增益。非伏击形态下，每打出一张牌会免费带出最早加入的牌。",
   "AMBUSH_ZONE_POWER.smartDescription": "[blue]{Amount:abs()}[/blue] 张牌在你的[gold]伏击区域[/gold]中。攻击牌提供[gold]力量[/gold]，技能牌提供[gold]敏捷[/gold]。",
