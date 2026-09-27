@@ -22,19 +22,19 @@ namespace lingdawnpao.Core
     /// （埋入路径传入 +1，加入即结算；带出/清空传负值被忽略）。
     /// </para>
     /// </summary>
-    public sealed class FlipFlop : CardModel, ILingdawnpaoCard
+    public sealed class Snowpack : CardModel, ILingdawnpaoCard
     {
         protected override IEnumerable<IHoverTip> ExtraHoverTips =>
         [
-            HoverTipFactory.FromPower<FlipFlopPower>(),
+            HoverTipFactory.FromPower<SnowpackPower>(),
         ];
 
         protected override IEnumerable<DynamicVar> CanonicalVars =>
         [
-            new PowerVar<FlipFlopPower>(2m),
+            new PowerVar<SnowpackPower>(2m),
         ];
 
-        public FlipFlop()
+        public Snowpack()
             : base(1, CardType.Power, CardRarity.Uncommon, TargetType.Self)
         {
         }
@@ -42,14 +42,14 @@ namespace lingdawnpao.Core
         protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
         {
             await CreatureCmd.TriggerAnim(Owner.Creature, "Cast", Owner.Character.CastAnimDelay);
-            await PowerCmd.Apply<FlipFlopPower>(choiceContext, Owner.Creature,
-                DynamicVars["FlipFlopPower"].BaseValue, Owner.Creature, this);
+            await PowerCmd.Apply<SnowpackPower>(choiceContext, Owner.Creature,
+                DynamicVars["SnowpackPower"].BaseValue, Owner.Creature, this);
             Owner.GetRelic<FrostFang>()?.Flash();
         }
 
         protected override void OnUpgrade()
         {
-            DynamicVars["FlipFlopPower"].UpgradeValueBy(1m); // 2 → 3 点
+            DynamicVars["SnowpackPower"].UpgradeValueBy(1m); // 2 → 3 点
         }
     }
 }

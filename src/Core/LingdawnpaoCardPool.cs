@@ -62,7 +62,7 @@ namespace lingdawnpao.Core
                 ModelDb.Card<SnowSurge>(),
                 ModelDb.Card<WhetClaw>(),
                 ModelDb.Card<ReadyForAnything>(),
-                ModelDb.Card<FlipFlop>(),
+                ModelDb.Card<Snowpack>(),
                 ModelDb.Card<ChainPounce>(),
                 ModelDb.Card<EternalHunt>(),
                 ModelDb.Card<NightPatrol>(),

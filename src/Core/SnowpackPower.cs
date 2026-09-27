@@ -11,10 +11,10 @@ namespace lingdawnpao.Core
     /// <para>
     /// **2026-09-24 用户定案：技能牌 → 能力牌**，本能力随之从"仅当回合有效"改为**整场战斗持续**
     /// （原先覆写了 `AfterSideTurnEnd` 在玩家回合结束时自删，现已移除）。改动缘由见
-    /// <see cref="FlipFlop" /> 的类注释。
+    /// <see cref="Snowpack" /> 的类注释。
     /// </para>
     /// </summary>
-    public sealed class FlipFlopPower : PowerModel
+    public sealed class SnowpackPower : PowerModel
     {
         public override PowerType Type => PowerType.Buff;
 

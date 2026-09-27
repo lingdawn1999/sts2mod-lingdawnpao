@@ -919,7 +919,7 @@ namespace lingdawnpao.Core
                 return;
             }
 
-            FlipFlopPower? power = player.Creature.GetPower<FlipFlopPower>();
+            SnowpackPower? power = player.Creature.GetPower<SnowpackPower>();
             if (power == null)
             {
                 return;
