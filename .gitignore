@@ -1,4 +1,8 @@
-﻿.godot/
+.godot/
 build/
 *.mono
 export_presets.cfg.bak
+# 游戏程序集与第三方库不入库（sts2.dll 是本体代码；构建时从游戏目录/本机 libs 拷贝）
+libs/
+*.pck
+
