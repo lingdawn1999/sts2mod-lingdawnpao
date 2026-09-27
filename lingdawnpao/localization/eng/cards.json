@@ -74,7 +74,7 @@
   "NIGHT_PATROL.title": "Dark Harvest",
   "NIGHT_PATROL.description": "At the start of each turn, if your [gold]Ambush zone[/gold] is not empty, gain {NightPatrolPower:diff()} [gold]Strength[/gold] and {NightPatrolPower:diff()} [gold]Dexterity[/gold].",
   "SNOWPACK.title": "Snowpack",
-  "SNOWPACK.description": "Whenever a card is added to your [gold]Ambush zone[/gold], gain {FlipFlopPower:diff()} [gold]Block[/gold].",
+  "SNOWPACK.description": "Whenever a card is added to your [gold]Ambush zone[/gold], gain {SnowpackPower:diff()} [gold]Block[/gold].",
   "CHAIN_POUNCE.title": "Chain Pounce",
   "CHAIN_POUNCE.description": "This turn, the next {ChainPouncePower:diff()} {ChainPouncePower:plural:card|cards} brought out of your [gold]Ambush zone[/gold] are played an additional time, then [gold]Exhausted[/gold].",
   "ETERNAL_HUNT.title": "Eternal Hunt",
