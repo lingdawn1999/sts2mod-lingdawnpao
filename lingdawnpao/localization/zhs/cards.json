@@ -74,7 +74,7 @@
   "READY_FOR_ANYTHING.title": "有备而来",
   "READY_FOR_ANYTHING.description": "造成{Damage:diff()}点伤害。\n你[gold]伏击区域[/gold]中每有一张牌，此牌的耗能就减少{Energy:energyIcons()}。",
   "FLIP_FLOP.title": "反复横跳",
-  "FLIP_FLOP.description": "[gold]伏击区域[/gold]中的牌数每变化1张，你获得{FlipFlopPower:diff()}点[gold]格挡[/gold]。",
+  "FLIP_FLOP.description": "[gold]伏击区域[/gold]每有牌加入时，你获得{FlipFlopPower:diff()}点[gold]格挡[/gold]。",
   "CHAIN_POUNCE.title": "连扑",
   "CHAIN_POUNCE.description": "本回合你从[gold]伏击区域[/gold]带出的下{ChainPouncePower:diff()}张牌将会额外打出一次，并将其消耗。",
   "ETERNAL_HUNT.title": "永恒狩猎",

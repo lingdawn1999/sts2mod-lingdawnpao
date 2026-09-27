@@ -925,8 +925,14 @@ namespace lingdawnpao.Core
                 return;
             }
 
-            int count = delta < 0 ? -delta : delta;
-            await CreatureCmd.GainBlock(player.Creature, count * power.Amount, ValueProp.Unpowered, null, fast: true);
+            // 2026-09-27 用户重做：只有**加入**（delta > 0）才结算——带出 / 消耗 / 清空不再送甲
+            // （倾泄/收网一次清空不再白送一大笔格挡；带出侧的收益归被带出的牌本身）。
+            if (delta < 0)
+            {
+                return;
+            }
+
+            await CreatureCmd.GainBlock(player.Creature, delta * power.Amount, ValueProp.Unpowered, null, fast: true);
         }
 
         /// <summary>
