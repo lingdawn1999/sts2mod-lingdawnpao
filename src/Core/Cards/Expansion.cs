@@ -37,13 +37,9 @@ namespace lingdawnpao.Core
                 return;
             }
 
-            // 给 AmbushCapacityPower 叠层加成上限（替代直接改字段，让上限可视化与统一管理）
-            var creature = Owner.Creature;
-            int n = DynamicVars.Repeat.IntValue;
-            await PowerCmd.Apply<AmbushCapacityPower>(choiceContext, creature, n, creature, null);
-            Log.Info($"伏击区域：已满 → 上限提升至 {zone.Capacity}（扩张）");
+            // 统一扩容入口（硬顶 9）；区满时白赚一格，未满打出不消耗也不生效
+            await AmbushZone.AddCapacityAsync(choiceContext, Owner, DynamicVars.Repeat.IntValue, "扩张");
             Owner.GetRelic<FrostFang>()?.Flash();
-            AmbushZoneUi.Refresh();
         }
 
         protected override void OnUpgrade()

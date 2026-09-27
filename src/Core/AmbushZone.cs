@@ -65,7 +65,8 @@ namespace lingdawnpao.Core
             get
             {
                 int amount = (int)(Player.Creature.GetPower<AmbushCapacityPower>()?.Amount ?? 0);
-                return amount > 0 ? amount : AmbushZone.MaxSize;
+                // 硬顶兜底：所有扩容入口都走 AddCapacityAsync，这里再夹一道防手滑
+                return amount > 0 ? System.Math.Min(amount, AmbushZone.CapacityHardCap) : AmbushZone.MaxSize;
             }
         }
 
@@ -142,6 +143,33 @@ namespace lingdawnpao.Core
     public static class AmbushZone
     {
         public const int MaxSize = 3;
+
+        /// <summary>
+        /// 伏击区上限的**硬顶**（2026-09-27 用户定稿"期望 8/9 左右就行"）：
+        /// 每回合首次能力牌 / 张网以待 / 扩张的扩容全部只能涨到这里封顶，
+        /// 防止"雪球技巧填区 → 力量平台"随回合数无界滚雪球。
+        /// </summary>
+        public const int CapacityHardCap = 9;
+
+        /// <summary>
+        /// **统一扩容入口**：把上限提高 n 层，但**不超过硬顶**（超出的部分静默丢弃并记日志）。
+        /// 三处扩容（每回合首次能力牌 / 张网以待 / 扩张）都必须走这里，别直接 Apply 能力。
+        /// </summary>
+        public static async Task AddCapacityAsync(PlayerChoiceContext choiceContext, Player player, int n, string source)
+        {
+            Creature creature = player.Creature;
+            int current = (int)(creature.GetPower<AmbushCapacityPower>()?.Amount ?? 0);
+            int effective = System.Math.Min(n, CapacityHardCap - current);
+            if (effective <= 0)
+            {
+                Log.Info($"伏击区域：已达硬顶 {CapacityHardCap}，「{source}」的扩容被跳过");
+                return;
+            }
+
+            await PowerCmd.Apply<AmbushCapacityPower>(choiceContext, creature, effective, creature, null);
+            Log.Info($"伏击区域：「{source}」上限提升至 {For(player).Capacity}");
+            AmbushZoneUi.Refresh();
+        }
 
         private static readonly Dictionary<ulong, AmbushZoneState> Zones = new();
 

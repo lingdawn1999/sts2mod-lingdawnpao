@@ -191,14 +191,13 @@ namespace lingdawnpao.Core
             // 只认手动打出的能力牌（带出自动打出的 IsAutoPlay 已在上面拦掉）；
             // 伏击形态下埋掉的能力牌不走出牌流程、不进本钩子，自然也不算"使用"。
             // 张网以待/扩张之外的普通能力牌（姿态牌、凝寒等）也能触发——能力牌打出自带扩容价值。
+            // 扩容走统一入口（硬顶 9，见 AmbushZone.AddCapacityAsync）。
             if (cardPlay.Card.Type == CardType.Power && cardPlay.Card.Owner == owner
                 && !zone.PowerCapacityUsedThisTurn)
             {
                 zone.PowerCapacityUsedThisTurn = true;
-                await PowerCmd.Apply<AmbushCapacityPower>(choiceContext, owner.Creature, 1, owner.Creature, null);
-                Log.Info($"伏击区域：本回合首次使用能力牌，上限提升至 {zone.Capacity}");
+                await AmbushZone.AddCapacityAsync(choiceContext, owner, 1, "本回合首次使用能力牌");
                 Flash();
-                AmbushZoneUi.Refresh();
             }
 
             // ── 以下为"非伏击形态带出"逻辑，豁免名单与口径见下方原注释 ──
