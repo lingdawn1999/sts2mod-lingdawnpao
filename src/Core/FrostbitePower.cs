@@ -57,19 +57,35 @@ namespace lingdawnpao.Core
         /// </summary>
         public static async Task<FrostbitePower?> ApplyFrostAsync(PlayerChoiceContext choiceContext, Creature target, decimal stacks, Creature? applier, CardModel? cardSource)
         {
-            // 「凝寒」：施加者每层让**本次施加的层数**额外 +1（2026-09-21 新卡）。
-            // 放在 Apply 之前，所以它同时抬高"这一次的挂冰伤害"与"残留层数"。
-            // 只认 applier：冰封王座把冰冻挂到玩家自己身上时 applier 为空，不吃加成（避免自伤被自己的凝寒放大）。
+            // 「凝寒」（2026-09-27 用户重做：0→1 费，固定加成改**成长型**）：
+            // 你每次造成冰冻时，本次施加的层数额外 +「凝寒」当前层数；结算后凝寒 +1（下次更多）。
+            // 打出凝寒时先垫 1 层（计数含本次），所以第 1 次挂冰 +1、第 2 次 +2、第 n 次 +n。
+            // 计数与加成只在**顶层施加**做一次（_batchDepth == 0）：批量溅射内部的单敌结算
+            // 不重复计次，同一次溅射里全体敌人吃同一个加成值。冰封王座自挂（applier=null）不计数不加成。
             if (applier != null)
             {
-                stacks += applier.GetPower<FrostIntensifyPower>()?.Amount ?? 0m;
-
-                // 「狂欢时刻」（2026-09-23 用户重做）：**只有雪球 / 大雪球**的挂冰额外 +层数。
-                // 放在这里而不是雪球的 OnPlay 里，是为了让「雪球发射器」「打雪仗」「雪场」这些
-                // **自动打出雪球**的来源一并吃到（它们最终都是"打出雪球牌"，cardSource 就是那张雪球）。
-                if (cardSource is Snowball or BigSnowball)
+                FrostIntensifyPower? intensify = applier.GetPower<FrostIntensifyPower>();
+                if (intensify != null && _batchDepth == 0)
                 {
-                    stacks += applier.GetPower<CarnivalMomentPower>()?.Amount ?? 0m;
+                    stacks += intensify.Amount;
+                    await PowerCmd.ModifyAmount(new ThrowingPlayerChoiceContext(), intensify, 1m, applier, cardSource);
+                }
+
+                // 「狂欢时刻」（2026-09-27 用户重做：从"雪球挂冰+固定层数"改为**溅射全体**）：
+                // 雪球/大雪球的挂冰改为对**全体敌人**结算（含原目标，全体同一层数）。
+                // 层数 = 原层数 +（Amount - 1：基础 1=纯开关加 0，升级 2=全体 +1）。
+                // 走批量入口：内部 _batchDepth > 0，递归进来的单敌结算不再触发溅射/凝寒计次；
+                // 「雪隐」格挡回调整批只一次。自动打出雪球的来源（发射器/打雪仗/雪场）同样吃溅射
+                // （cardSource 都是那张雪球）。
+                if (cardSource is Snowball or BigSnowball
+                    && target.IsEnemy
+                    && applier.GetPower<CarnivalMomentPower>() is { Amount: > 0 }
+                    && _batchDepth == 0)
+                {
+                    decimal splashed = stacks + (applier.GetPower<CarnivalMomentPower>()!.Amount - 1m);
+                    await ApplyFrostToAllAsync(choiceContext, applier.CombatState!.HittableEnemies,
+                        splashed, applier, cardSource);
+                    return target.GetPower<FrostbitePower>();
                 }
             }
 
