@@ -4,7 +4,7 @@
   "HUNT_OPERATION.title": "Unleash",
   "HUNT_OPERATION.description": "Gain {CalculationExtra:diff()} [gold]Block[/gold] for each card in your [gold]Ambush zone[/gold], then bring out all cards in it and trigger them one by one.{InCombat:\n(Gain {CalculatedBlock:diff()} [gold]Block[/gold])|}",
   "TIGER_COMBO.title": "Tiger Frenzy",
-  "TIGER_COMBO.description": "Deal {Damage:diff()} damage. If the card brought out from your [gold]Ambush zone[/gold] is an Attack, play this card again.",
+  "TIGER_COMBO.description": "Apply {RendPower:diff()} [gold]Rend[/gold]. Deal {Damage:diff()} damage. If the card brought out from your [gold]Ambush zone[/gold] is an Attack, play this card again.",
   "WIDENED_NET.title": "Cast the Net",
   "WIDENED_NET.description": "[gold]Ambush zone[/gold] capacity +{Repeat:diff}.",
   "EXPANSION.title": "Expansion",

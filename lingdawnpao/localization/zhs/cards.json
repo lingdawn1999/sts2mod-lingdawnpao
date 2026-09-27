@@ -4,7 +4,7 @@
   "HUNT_OPERATION.title": "倾泄",
   "HUNT_OPERATION.description": "你[gold]伏击区域[/gold]中每有一张牌，获得{CalculationExtra:diff()}点[gold]格挡[/gold]，然后带出[gold]伏击区域[/gold]中的所有牌并依次触发。{InCombat:\n（获得{CalculatedBlock:diff()}点[gold]格挡[/gold]）|}",
   "TIGER_COMBO.title": "猛虎连击",
-  "TIGER_COMBO.description": "造成{Damage:diff()}点伤害。若[gold]伏击区域[/gold]带出的是攻击牌，则再次打出此牌。",
+  "TIGER_COMBO.description": "给予{RendPower:diff()}层[gold]撕裂[/gold]，造成{Damage:diff()}点伤害。若[gold]伏击区域[/gold]带出的是攻击牌，则再次打出此牌。",
   "WIDENED_NET.title": "张网以待",
   "WIDENED_NET.description": "[gold]伏击区域[/gold]上限+{Repeat:diff}。",
   "EXPANSION.title": "扩张",

@@ -21,9 +21,10 @@ namespace lingdawnpao.Core
     /// ① 初版 = 本体「备战」直搬（1 费 / 下回合 2 能量）——2026-09-23 用户判定"作为加费卡非常劣质"
     ///   （当回合净亏 1 费 + 一张牌），改成 0 费当回合 +1 能量 + 消耗；
     /// ② 2026-09-23 第二轮：收编原「雪原疾行」的"白卡给费"定位（白卡给费、蓝卡给牌）；
-    /// ③ **本版（2026-09-27 用户定稿）**：回到"1 费 / 下回合 2 能量"的老骨架，但**挂上"选 1 张手牌入区"**
-    ///   作为卖点——花 1 费买"埋一格 + 下回合 2 费"的组合，净收益 +1 费延后到手，埋牌那张还是自选的。
-    /// 升级从"能量+1"升级为"能量+1 且去消耗"：可重复使用后它是后期每回合稳定 +1 费的小引擎。
+    /// ③ 2026-09-27（上午）：回到"1 费 / 下回合 2 能量"的老骨架，挂上"选 1 张手牌入区"作为卖点，
+    ///    升级 = 能量+1 且去消耗；
+    /// ④ **本版（2026-09-27 用户定稿）**：**基础就去掉[gold]消耗[/gold]**（升级位只剩能量 2 → 3）——
+    ///    可重复使用后它是稳定的埋牌 + 下回合回费件，基础可复用更符合白卡定位。
     /// </para>
     /// <para>
     /// **埋入路径**：照暗杀者遗物的手牌埋入（<see cref="AmbushZone.BuryAsync" />，`spendResources: false`，
@@ -45,7 +46,7 @@ namespace lingdawnpao.Core
             new EnergyVar(2),
         ];
 
-        public override IEnumerable<CardKeyword> CanonicalKeywords => new[] { CardKeyword.Exhaust };
+        // 基础不带消耗（2026-09-27 用户定稿；升级位只剩能量 +1）
 
         public Stockpile()
             : base(1, CardType.Skill, CardRarity.Common, TargetType.Self)
@@ -73,8 +74,7 @@ namespace lingdawnpao.Core
 
         protected override void OnUpgrade()
         {
-            DynamicVars.Energy.UpgradeValueBy(1m); // 下回合 2 → 3
-            RemoveKeyword(CardKeyword.Exhaust);    // 升级去掉消耗（照「翻雪」）
+            DynamicVars.Energy.UpgradeValueBy(1m); // 下回合 2 → 3（消耗已从基础移除）
         }
     }
 }
