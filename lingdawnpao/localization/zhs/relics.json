@@ -17,5 +17,8 @@
   "SNOWBALL_POUCH.flavor": "“每一发都压得更实。”",
   "CAT_SNACK.title": "小零食",
   "CAT_SNACK.description": "每场战斗当你首次将牌加入[gold]伏击区域[/gold]时，抽1张牌。",
-  "CAT_SNACK.flavor": "“开饭前先来一口。”"
+  "CAT_SNACK.flavor": "“开饭前先来一口。”",
+  "THICKET.title": "草丛",
+  "THICKET.description": "从[gold]伏击区域[/gold]带出的攻击牌，造成的伤害+2。",
+  "THICKET.flavor": "“草丛里，不止有风。”"
 }

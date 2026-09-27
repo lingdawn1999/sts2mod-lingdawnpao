@@ -33,7 +33,7 @@ namespace lingdawnpao.Core
         [
             ModelDb.Relic<FrostFang>(), ModelDb.Relic<Assassin>(),
             ModelDb.Relic<CozyPelt>(), ModelDb.Relic<Frostbell>(), ModelDb.Relic<SnowballPouch>(),
-            ModelDb.Relic<CatSnack>(),
+            ModelDb.Relic<CatSnack>(), ModelDb.Relic<Thicket>(),
         ];
     }
 }

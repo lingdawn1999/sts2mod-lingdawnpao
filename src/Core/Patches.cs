@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Threading.Tasks;
 using Godot;
 using HarmonyLib;
+using lingdawnpao.Core.Relics;
 using MegaCrit.Sts2.Core.Animation;
 using MegaCrit.Sts2.Core.Bindings.MegaSpine;
 using MegaCrit.Sts2.Core.Commands;
@@ -669,6 +670,49 @@ namespace lingdawnpao.Core
             }
 
             props |= ValueProp.Unblockable;
+        }
+    }
+
+    /// <summary>
+    /// 「草丛」（遗物）：从[gold]伏击区域[/gold]带出的攻击牌伤害+2——2026-09-27 用户定稿。
+    /// <para>
+    /// 挂点选 <c>CreatureCmd.Damage</c> 的**核心重载**（带 targets/amount/cardSource 的那个，
+    /// 狩猎形态补丁同款位置）：所有卡牌伤害的必经收口。筛选条件与「十万埋伏」的记账同口径：
+    /// ① <see cref="AmbushZone.IsAmbushPlay" />（这张伤害来自带出的伏击牌——跨回合潜伏过的）；
+    /// ② 只吃[gold]攻击[/gold]伤害（IsPoweredAttack，撕裂/挂冰等 Unpowered 不吃）；
+    /// ③ 施加者带草丛。多段攻击每段各+2（照"伤害+2"的口径）。
+    /// 加法落在 CreatureCmd.Damage 入口 = 乘区（破绽等）**之前**，与本体"先加法、再乘倍率"的口径一致。
+    /// </para>
+    /// </summary>
+    [HarmonyPatch]
+    internal static class CreatureCmd_Damage_ThicketPatch
+    {
+        private static IEnumerable<MethodBase> TargetMethods()
+        {
+            // 只认核心重载：签名同时含 targets / amount / cardSource（外层包装重载是 target 单数或 damageVar）
+            foreach (MethodInfo method in AccessTools.GetDeclaredMethods(typeof(CreatureCmd))
+                         .Where(m => m.Name == "Damage"))
+            {
+                ParameterInfo[] parameters = method.GetParameters();
+                if (parameters.Any(p => p.Name == "targets")
+                    && parameters.Any(p => p.Name == "amount")
+                    && parameters.Any(p => p.Name == "cardSource"))
+                {
+                    yield return method;
+                }
+            }
+        }
+
+        private static void Prefix(ref decimal amount, ValueProp props, Creature? dealer, CardModel? cardSource)
+        {
+            if (dealer?.Player == null || cardSource == null || !props.IsPoweredAttack()
+                || !AmbushZone.IsAmbushPlay(cardSource)
+                || dealer.Player.GetRelic<Thicket>() == null)
+            {
+                return;
+            }
+
+            amount += 2m;
         }
     }
 

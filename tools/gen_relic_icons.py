@@ -11,6 +11,7 @@ ICE = (140, 190, 225, 255)
 ICE_DARK = (70, 120, 160, 255)
 NAVY = (24, 44, 66, 255)
 CREAM = (232, 220, 198, 255)
+GOLD = (216, 169, 78, 255)
 
 
 def save(im, rel):
@@ -126,11 +127,26 @@ def paint_cat_snack(d, s):
     d.arc([124, 112, 172, 160], 200, 340, fill=ICE_DARK, width=8)
 
 
+def paint_thicket(d, s):
+    """草丛：一丛草叶 + 藏在里面的眼睛。"""
+    w = 14
+    # 三片草叶（深绿）
+    d.polygon([(72, 216), (100, 216), (86, 60)], fill=(74, 140, 84, 255), outline=NAVY, width=w)
+    d.polygon([(112, 216), (144, 216), (128, 28)], fill=(96, 168, 96, 255), outline=NAVY, width=w)
+    d.polygon([(152, 216), (182, 216), (170, 76)], fill=(74, 140, 84, 255), outline=NAVY, width=w)
+    # 草丛里的眼睛
+    d.ellipse([96, 150, 118, 172], fill=GOLD, outline=NAVY, width=8)
+    d.ellipse([142, 150, 164, 172], fill=GOLD, outline=NAVY, width=8)
+    d.ellipse([104, 158, 110, 164], fill=NAVY)
+    d.ellipse([150, 158, 156, 164], fill=NAVY)
+
+
 if __name__ == "__main__":
     make_relic("cozy_pelt", paint_cozy_pelt)
     make_relic("frostbell", paint_frostbell)
     make_relic("snowball_pouch", paint_snowball_pouch)
     make_relic("cat_snack", paint_cat_snack)
+    make_relic("thicket", paint_thicket)
     make_power("swarm_ambush_grant_power", paint_swarm_grant)
     make_power("vape_power", paint_vape)
     print("done.")

@@ -17,5 +17,8 @@
   "SNOWBALL_POUCH.flavor": "\"Every throw is packed harder.\"",
   "CAT_SNACK.title": "Cat Snack",
   "CAT_SNACK.description": "The first time you add a card into your [gold]Ambush zone[/gold] each combat, draw 1 card.",
-  "CAT_SNACK.flavor": "\"A little something before the hunt.\""
+  "CAT_SNACK.flavor": "\"A little something before the hunt.\"",
+  "THICKET.title": "Thicket",
+  "THICKET.description": "Attack cards brought out from your [gold]Ambush zone[/gold] deal 2 additional damage.",
+  "THICKET.flavor": "\"There is more than wind hiding in the grass.\""
 }
