@@ -19,8 +19,8 @@ namespace lingdawnpao.Core
     /// 撕裂在循环外只挂一次，但每段攻击伤害各触发一次（N+1 段 = 撕裂吃 N+1 次），多段与撕裂天然联动。
     /// <para>
     /// **撕裂沿革**：2026-09-25 用户移除（当时整条撕裂线下放给「棘背龙形态」，避免重复承载）；
-    /// **2026-09-27 用户定案回归**（1/2 层）——升级位从"伤害 12 → 16"改为"撕裂 1 → 2"，
-    /// 升级不再只给白值，且撕裂×多段的本命组合是这张卡的正反馈来源。
+    /// **2026-09-27 用户定案回归**（1/2 层）——撕裂×多段的本命组合是这张卡的正反馈来源；
+    /// 同日补充：升级**同时保留伤害 12 → 16**（撕裂 1 → 2 + 白值一并给）。
     /// </para>
     /// </summary>
     public sealed class TigerCombo : CardModel, ILingdawnpaoCard
@@ -73,7 +73,8 @@ namespace lingdawnpao.Core
 
         protected override void OnUpgrade()
         {
-            DynamicVars["RendPower"].UpgradeValueBy(1m); // 撕裂 1 → 2 层（2026-09-27 用户定案，替代原"伤害 12 → 16"）
+            DynamicVars.Damage.UpgradeValueBy(4m);       // 伤害 12 → 16（2026-09-27 用户定案：白值保留）
+            DynamicVars["RendPower"].UpgradeValueBy(1m); // 撕裂 1 → 2 层
         }
     }
 }

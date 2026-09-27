@@ -38,8 +38,8 @@ namespace lingdawnpao.Core
     /// （预览回调本身就是"有归属才调"），多一层判空反而掩盖真问题。
     /// </para>
     /// <para>
-    /// 数值：基础 8、每层成长 4；**升级成长 4 → 6**（2026-09-27 用户定案：
-    /// "升级不能只给白值"——基础不动，成长轴才是这张卡的引擎位，+2 成长随伏击战绩复利）。
+    /// 数值：基础 8、每层成长 4；**升级基础 12 + 每层成长 5**（2026-09-27 用户定案：
+    /// "升级改成打 12，每层成长 +5"——基础与成长轴同时抬，替代此前"只升基础"与"只升成长"两个中间版）。
     /// </para>
     /// </summary>
     public sealed class AmbushBarrage : CardModel, ILingdawnpaoCard
@@ -73,7 +73,8 @@ namespace lingdawnpao.Core
 
         protected override void OnUpgrade()
         {
-            DynamicVars.ExtraDamage.UpgradeValueBy(2m);   // 每层成长 4 → 6（2026-09-27 用户定案，替代原"基础 8 → 11"）
+            DynamicVars.CalculationBase.UpgradeValueBy(4m); // 基础 8 → 12（2026-09-27 用户定案）
+            DynamicVars.ExtraDamage.UpgradeValueBy(1m);     // 每层成长 4 → 5
         }
     }
 }
