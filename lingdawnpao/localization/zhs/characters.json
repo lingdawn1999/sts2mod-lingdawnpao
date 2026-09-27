@@ -1,0 +1,15 @@
+{
+  "LINGDAWNPAO.title": "芝士雪豹",
+  "LINGDAWNPAO.description": "隐匿于阴影中的猎手。\n善于通过伏击来击溃阻挡他的拦路者。",
+  "LINGDAWNPAO.titleObject": "芝士雪豹",
+  "LINGDAWNPAO.pronounObject": "它",
+  "LINGDAWNPAO.possessiveAdjective": "它的",
+  "LINGDAWNPAO.pronounPossessive": "它的",
+  "LINGDAWNPAO.pronounSubject": "它",
+  "LINGDAWNPAO.cardsModifierTitle": "雪豹卡牌",
+  "LINGDAWNPAO.cardsModifierDescription": "芝士雪豹的卡牌现在会出现在奖励和商店中。",
+  "LINGDAWNPAO.eventDeathPrevention": "雪豹舔了舔伤口，拒绝倒下。",
+  "LINGDAWNPAO.unlockText": "从一开始就可以使用。",
+  "LINGDAWNPAO.banter.alive.endTurnPing": "[sine]悄无声息……[/sine]",
+  "LINGDAWNPAO.banter.dead.endTurnPing": "雪豹闭上了眼睛。"
+}

@@ -1,0 +1,31 @@
+﻿<Project Sdk="Godot.NET.Sdk/4.5.1">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <!--
+      单份 DLL 同时支持正式版（public）与测试分支（public-beta）——不拆条目、不绑第三方库。
+      做法：两个分支**签名不同**的本体成员一律走运行期探测（见 src/Core/BranchCompat.cs，
+      以及 Patches.cs 里按名字解析目标的几个补丁），源码里只保留对"两分支都存在"的成员的编译期引用。
+
+      Sts2Ref 只切**参考程序集**（不定义任何编译符号）：默认 libs\sts2.dll（正式版 v0.107.1），
+      `-p:Sts2Ref=beta` 用 libs\sts2.beta.dll（测试分支 v0.111.0）。
+      它的用途是**编译校验**——改完代码两边各编一次、都必须 0 错误；只要有一边报"找不到成员"，
+      就说明又引入了编译期分支依赖，必须改成运行期探测。产出的 DLL 是同一份，两边都能跑。
+      换本体版本时把对应 dll 覆盖到 libs\ 下即可。
+    -->
+    <Sts2Ref Condition="'$(Sts2Ref)' == ''">public</Sts2Ref>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="0Harmony">
+      <HintPath>libs\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="sts2">
+      <HintPath Condition="'$(Sts2Ref)' == 'beta'">libs\sts2.beta.dll</HintPath>
+      <HintPath Condition="'$(Sts2Ref)' != 'beta'">libs\sts2.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+</Project>

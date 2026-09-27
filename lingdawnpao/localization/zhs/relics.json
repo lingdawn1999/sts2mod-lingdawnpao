@@ -1,0 +1,10 @@
+{
+  "FROST_FANG.title": "伏击者",
+  "FROST_FANG.description": "右键在正常形态与伏击形态之间切换。伏击形态下使用牌时，牌会加入伏击区域，正常形态下使用牌时，会带出最先加入伏击区域的一张牌。每回合你的第一张费用不高于1的埋牌免费，且每回合首次埋牌后抽1张牌。",
+  "FROST_FANG.flavor": "“潜伏起来，等待一个机会。”",
+  "FROST_FANG.burnPrompt": "选择一张牌烧掉（伏击区域上限+1）。",
+  "ASSASSIN.title": "暗杀者",
+  "ASSASSIN.description": "右键在正常形态与伏击形态之间切换。伏击形态下使用牌时，牌会加入伏击区域，正常形态下使用牌时，会带出最先加入伏击区域的一张牌。你的[gold]伏击区域[/gold]上限提高[blue]1[/blue]。在你的回合开始时，你可以将一张手牌加入[gold]伏击区域[/gold]。",
+  "ASSASSIN.flavor": "你已经熟练掌握了狩猎的诀窍。",
+  "ASSASSIN.selectionScreenPrompt": "选择一张牌加入你的[gold]伏击区域[/gold]。"
+}

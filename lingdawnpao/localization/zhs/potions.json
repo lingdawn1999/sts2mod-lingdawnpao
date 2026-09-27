@@ -1,0 +1,8 @@
+{
+  "BLIZZARD_BOTTLE.title": "暴雪瓶",
+  "BLIZZARD_BOTTLE.description": "给予[blue]{FrostbitePower}[/blue]层[gold]冰冻[/gold]。",
+  "AMBUSH_ART.title": "伏击艺术",
+  "AMBUSH_ART.description": "用随机的牌填满你的[gold]伏击区域[/gold]。",
+  "SPEAK_WITH_ANIMALS.title": "动物交谈药水",
+  "SPEAK_WITH_ANIMALS.description": "随机将{Cards:diff()}张[gold]动物+[/gold]加入你的手牌。"
+}

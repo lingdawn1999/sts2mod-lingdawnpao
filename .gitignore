@@ -1,0 +1,4 @@
+﻿.godot/
+build/
+*.mono
+export_presets.cfg.bak

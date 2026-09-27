@@ -1,0 +1,37 @@
+[gd_resource type="SpineSkeletonDataResource" load_steps=8 format=3]
+
+[ext_resource type="SpineAtlasResource" path="res://animations/characters/lingdawnpao/lingdawnpao.spatlas" id="1_ldp"]
+[ext_resource type="SpineSkeletonFileResource" path="res://animations/characters/lingdawnpao/lingdawnpao.spjson" id="2_ldp"]
+
+[sub_resource type="SpineAnimationMix" id="mix_idle_attack"]
+from = "idle_loop"
+to = "attack"
+mix = 0.1
+
+[sub_resource type="SpineAnimationMix" id="mix_attack_attack"]
+from = "attack"
+to = "attack"
+
+[sub_resource type="SpineAnimationMix" id="mix_hurt_hurt"]
+from = "hurt"
+to = "hurt"
+
+[sub_resource type="SpineAnimationMix" id="mix_hurt_die"]
+from = "hurt"
+to = "die"
+
+[sub_resource type="SpineAnimationMix" id="mix_idle_hurt"]
+from = "idle_loop"
+to = "hurt"
+mix = 0.03
+
+[sub_resource type="SpineAnimationMix" id="mix_hurt_idle"]
+from = "hurt"
+to = "idle_loop"
+mix = 0.1
+
+[resource]
+atlas_res = ExtResource("1_ldp")
+skeleton_file_res = ExtResource("2_ldp")
+default_mix = 0.05
+animation_mixes = [SubResource("mix_idle_attack"), SubResource("mix_attack_attack"), SubResource("mix_hurt_hurt"), SubResource("mix_hurt_die"), SubResource("mix_idle_hurt"), SubResource("mix_hurt_idle")]

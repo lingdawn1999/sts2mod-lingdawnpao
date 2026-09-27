@@ -1,0 +1,15 @@
+{
+  "LINGDAWNPAO.title": "Cheese Snow Leopard",
+  "LINGDAWNPAO.description": "A hunter lurking in the shadows.\nAdept at crushing those who stand in the way with ambushes.",
+  "LINGDAWNPAO.titleObject": "Cheese Snow Leopard",
+  "LINGDAWNPAO.pronounObject": "it",
+  "LINGDAWNPAO.possessiveAdjective": "its",
+  "LINGDAWNPAO.pronounPossessive": "its",
+  "LINGDAWNPAO.pronounSubject": "it",
+  "LINGDAWNPAO.cardsModifierTitle": "Snow Leopard Cards",
+  "LINGDAWNPAO.cardsModifierDescription": "Cheese Snow Leopard's cards can now appear in rewards and shops.",
+  "LINGDAWNPAO.eventDeathPrevention": "The leopard licks its wounds and refuses to fall.",
+  "LINGDAWNPAO.unlockText": "Available from the start.",
+  "LINGDAWNPAO.banter.alive.endTurnPing": "[sine]Silent as snowfall...[/sine]",
+  "LINGDAWNPAO.banter.dead.endTurnPing": "The leopard closes its eyes."
+}

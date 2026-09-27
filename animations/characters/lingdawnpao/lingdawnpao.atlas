@@ -1,0 +1,62 @@
+
+lingdawnpao.png
+size: 1400,842
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+body
+  rotate: true
+  xy: 2, 40
+  size: 800, 640
+  orig: 800, 640
+  offset: 0, 0
+  index: -1
+ear
+  rotate: true
+  xy: 1211, 12
+  size: 113, 131
+  orig: 114, 131
+  offset: 1, 0
+  index: -1
+ear_far
+  rotate: true
+  xy: 644, 328
+  size: 512, 526
+  orig: 512, 526
+  offset: 0, 0
+  index: -1
+head
+  rotate: true
+  xy: 644, 2
+  size: 324, 340
+  orig: 324, 340
+  offset: 0, 0
+  index: -1
+tail_seg1
+  rotate: true
+  xy: 1172, 363
+  size: 175, 226
+  orig: 175, 226
+  offset: 0, 0
+  index: -1
+tail_seg2
+  rotate: false
+  xy: 986, 26
+  size: 223, 300
+  orig: 223, 300
+  offset: 0, 0
+  index: -1
+tail_seg3
+  rotate: true
+  xy: 1172, 540
+  size: 300, 215
+  orig: 300, 215
+  offset: 0, 0
+  index: -1
+tail_seg4
+  rotate: true
+  xy: 1211, 127
+  size: 234, 157
+  orig: 234, 157
+  offset: 0, 0
+  index: -1

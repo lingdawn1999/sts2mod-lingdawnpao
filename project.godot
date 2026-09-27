@@ -1,0 +1,19 @@
+; Engine configuration file.
+config_version=5
+
+[application]
+
+config/name="lingdawnpao"
+config/description="芝士雪豹 - STS2 自定义角色模组"
+run/main_scene=""
+config/features=PackedStringArray("4.5", "C#")
+config/icon="res://icon.svg"
+
+[dotnet]
+
+project/assembly_name="lingdawnpao"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
