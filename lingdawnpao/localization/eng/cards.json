@@ -78,7 +78,7 @@
   "CHAIN_POUNCE.title": "Chain Pounce",
   "CHAIN_POUNCE.description": "This turn, the next {ChainPouncePower:diff()} {ChainPouncePower:plural:card|cards} brought out of your [gold]Ambush zone[/gold] are played an additional time, then [gold]Exhausted[/gold].",
   "ETERNAL_HUNT.title": "Eternal Hunt",
-  "ETERNAL_HUNT.description": "Each turn, your free bury allowance increases by {EternalHuntPower:diff()}, and free buries are no longer limited by card cost.",
+  "ETERNAL_HUNT.description": "Each turn, you may add the first {EternalHuntPower:plural:card|{EternalHuntPower:diff()} cards} into your [gold]Ambush zone[/gold] for free.",
   "HUNT.title": "Hunt",
   "HUNT.description": "Add {Repeat:diff} [gold]{IfUpgraded:show:Prey+|Prey}[/gold] into your [gold]Ambush zone[/gold].\n[gold]Ambush[/gold]: Gain {Energy:energyIcons()}.",
   "PREY.title": "Prey",

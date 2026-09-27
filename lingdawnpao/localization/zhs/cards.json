@@ -78,7 +78,7 @@
   "CHAIN_POUNCE.title": "连扑",
   "CHAIN_POUNCE.description": "本回合你从[gold]伏击区域[/gold]带出的下{ChainPouncePower:diff()}张牌将会额外打出一次，并将其消耗。",
   "ETERNAL_HUNT.title": "永恒狩猎",
-  "ETERNAL_HUNT.description": "每回合你的免费埋牌额度+{EternalHuntPower:diff()}张，且免费埋牌不再受「费用不高于1」的限制。",
+  "ETERNAL_HUNT.description": "每回合你的前{EternalHuntPower:diff()}张手牌加入[gold]伏击区域[/gold]时免费。",
   "HUNT.title": "捕猎",
   "HUNT.description": "将{Repeat:diff}张[gold]{IfUpgraded:show:猎物+|猎物}[/gold]加入你的[gold]伏击区域[/gold]。\n[gold]埋伏[/gold]：获得{Energy:energyIcons()}。",
   "PREY.title": "猎物",
