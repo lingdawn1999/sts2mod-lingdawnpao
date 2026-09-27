@@ -201,7 +201,8 @@ namespace lingdawnpao.Core
             }
 
             // ── 以下为"非伏击形态带出"逻辑，豁免名单与口径见下方原注释 ──
-            if (cardPlay.Card is TigerCombo or SetAmbush or Hunt or EternalBreath or BodyPounce or SnowCalamity or Regroup or Trove or SnowballTechnique)
+            if (cardPlay.Card is TigerCombo or SetAmbush or Hunt or EternalBreath or BodyPounce or SnowCalamity or Regroup or Trove or SnowballTechnique
+                or Stockpile or SnowfieldDash or SnowSift)
             {
                 return;
             }

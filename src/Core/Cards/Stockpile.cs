@@ -55,6 +55,10 @@ namespace lingdawnpao.Core
 
         protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
         {
+            // 先带出旧牌（非伏击形态、区域有牌才带），再选牌埋入——否则自己刚埋的牌
+            // 会被遗物的 AfterCardPlayed 照 FIFO 当"最早的一张"立刻带出来（设伏同款坑，2026-09-27 用户指出）
+            await AmbushZone.BringOutBeforeGenerateAsync(choiceContext, cardPlay.Target, Owner);
+
             CardModel? picked = (await CardSelectCmd.FromHand(
                 context: choiceContext,
                 player: Owner,
