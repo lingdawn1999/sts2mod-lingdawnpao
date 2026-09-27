@@ -12,11 +12,14 @@ using MegaCrit.Sts2.Core.ValueProps;
 namespace lingdawnpao.Core
 {
     /// <summary>
-    /// 探爪：1 费普通攻击（通用牌，2026-09-21 用户定稿）。
-    /// 造成 5 点伤害，获得 5 点格挡。升级：**7 伤 / 7 挡**（每项 +2）。
-    /// 定位：攻防一体的通用件——数值与升级数值**直接照抄本体「铁斩波」IronWave**
-    /// （1 费 5/5 → 升级 7/7，见 sts2mod-unciphered/src/Core/Models/Cards/IronWave.cs），任意卡组能塞；
-    /// 让"防御浓度上来"的同时不至于把输出压没，属于既补防线又保节奏的一档。
+    /// 探爪：1 费普通攻击（2026-09-27 用户重做，去本体化）。
+    /// 造成 4 点伤害，获得 4 点[gold]格挡[/gold]，**抽 1 张牌**。升级：**6 伤 / 6 挡**（每项 +2，抽牌不变）。
+    /// <para>
+    /// **沿革**：初版整张照抄本体「铁斩波」IronWave（1 费 5/5 → 升级 7/7，数值逐点相同，零扭曲）。
+    /// 2026-09-27 用户定"不再扩池、改造照抄卡"方向后，本卡作为**白卡位头号照抄重灾区**率先重做：
+    /// 数值降为 4/4，挂上**抽 1**——变成 mod 首张"伤/挡/抽"三合一日攻击（强度对齐本体剑柄打击的
+    /// "9 伤抽 1"，攻防分流不算超模），同时补上白卡的过牌供应。
+    /// </para>
     /// </summary>
     public sealed class ProbingClaw : CardModel, ILingdawnpaoCard
     {
@@ -26,8 +29,8 @@ namespace lingdawnpao.Core
 
         protected override IEnumerable<DynamicVar> CanonicalVars =>
         [
-            new DamageVar(5m, ValueProp.Move),
-            new BlockVar(5m, ValueProp.Move),
+            new DamageVar(4m, ValueProp.Move),
+            new BlockVar(4m, ValueProp.Move),
         ];
 
         public ProbingClaw()
@@ -44,12 +47,13 @@ namespace lingdawnpao.Core
                 .Execute(choiceContext);
 
             await CreatureCmd.GainBlock(Owner.Creature, DynamicVars.Block, cardPlay);
+            await CardPileCmd.Draw(choiceContext, 1, Owner);
         }
 
         protected override void OnUpgrade()
         {
-            DynamicVars.Damage.UpgradeValueBy(2m);   // 5 → 7（照抄本体铁斩波）
-            DynamicVars.Block.UpgradeValueBy(2m);    // 5 → 7（照抄本体铁斩波）
+            DynamicVars.Damage.UpgradeValueBy(2m);   // 4 → 6
+            DynamicVars.Block.UpgradeValueBy(2m);    // 4 → 6（抽牌不升）
         }
     }
 }
