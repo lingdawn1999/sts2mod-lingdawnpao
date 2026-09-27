@@ -1,53 +1,37 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
+using MegaCrit.Sts2.Core.CardSelection;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
-using MegaCrit.Sts2.Core.HoverTips;
-using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Models;
 
 namespace lingdawnpao.Core
 {
     /// <summary>
-    /// 雪原疾行：**1 费罕见（蓝卡）技能**（通用/运转轴），**抽 2 张牌**（升级：抽 3），**无消耗**；
-    /// **[gold]埋伏[/gold]：额外抽 1 张牌**（从伏击区域**跨回合**潜伏后带出时，**不随升级成长**）。
-    /// 全 mod 唯一一张"**无条件、无消耗**"的稳定过牌件——这条轴上其它卡要么带条件
-    /// （藏狐/乌鸦/动物家族绑[gold]动物[/gold]、霜息/雪爪突击把抽牌挂在攻击上），
-    /// 要么一次性（「暖雪」0 费抽 2，自带消耗）。
+    /// 雪原疾行：**1 费罕见（蓝卡）技能**（通用/运转轴），**抽 2 张牌，然后选择 1 张手牌加入[gold]伏击区域[/gold]**
+    /// （升级：抽 2 → 3）。过牌与主动埋卡二合一——"抽牌 + 自选埋入"让这张牌在补手牌的同时
+    /// 直接给区域递弹药（区域力敏 / 按区域存量的牌都吃它喂）。
     /// <para>
-    /// **2026-09-23 用户重做（原为 0 费 +1 能量 + 消耗 + 升级给固有）**：原效果整段下移到白卡「蓄能」
-    /// （白卡给费），本卡腾出来补**过牌**这个洞。取"1 费换 2 张牌"的档位是因为净收益只有 +1 张，
-    /// 且**每回合都要实付 1 费**——这正是它敢不设消耗、不设条件的前提。
-    /// 升级走"抽 2 → 3"的质变档（同「暖雪」的升级方式）。
+    /// **2026-09-27 用户重做（原为"抽 2 + [gold]埋伏[/gold]额外抽 1"）**：埋伏段整段移除
+    /// （不再实现 <see cref="IAmbushBonusCard" />，它在伏击堆里不再亮金框），换成"选 1 张手牌入区"——
+    /// 从"埋进去换多抽"的间接回报，改成"抽完当场选一张最好的塞进去"的直接联动。
     /// </para>
     /// <para>
-    /// **2026-09-24 用户加[gold]伏击形态[/gold]分支**：形态是玩家手动右键切换的（「伏击者」遗物），
-    /// 所以那条分支等于"你正在收集埋牌的那一回合多抽 1 张"。
-    /// </para>
-    /// <para>
-    /// **2026-09-24 第二轮（用户定案）**：把"伏击**形态**下多抽"改成"**[gold]埋伏[/gold]：额外抽 1 张**"——
-    /// 判定从 `zone.IsAmbushMode`（你正在切着形态）换成 <see cref="AmbushZone.IsVeteranAmbush" />
-    /// （这张牌真的在区域里跨回合潜伏过、被带出时），于是它从"看形态的通用件"变成
-    /// **伏击线的回报件**：埋进去等一回合，再带出来就多抽 1 张。
-    /// 数值同用户给的口径：**基础 2 张、升级只给基础 +1（→3）**，埋伏那 1 张**不升**。
-    /// 本卡随之从 <see cref="ILingdawnpaoCard" /> 改为实现 <see cref="IAmbushBonusCard" />
-    /// （按 `ILingdawnpaoCard` 的维护约定：带埋伏段的卡必须实现它，否则会出现
-    /// "能触发埋伏但不亮金框"的不一致——现在它在伏击堆界面里会亮金框）。
+    /// **埋入路径**：照暗杀者遗物的手牌埋入（<see cref="AmbushZone.BuryAsync" />，`spendResources: false`——
+    /// 效果埋入本就不花钱，走同一套手牌 holder 释放 + 飞入动画管线）。区域已满 / 冷却时埋不进，
+    /// 选中的牌老实留在手里（照「设伏」既有约定：不满足即空放，不做额外保护）。
+    /// 选牌走 <c>CardSelectCmd.FromHand</c>：姿态牌被
+    /// <see cref="CardSelectCmd_FromHand_AmbushStanceFilterPatch" /> 的过滤自动排除，不会选到说明书。
     /// </para>
     /// </summary>
-    public sealed class SnowfieldDash : CardModel, IAmbushBonusCard
+    public sealed class SnowfieldDash : CardModel, ILingdawnpaoCard
     {
-        protected override IEnumerable<IHoverTip> ExtraHoverTips =>
-        [
-            new HoverTip(new LocString("card_keywords", "AMBUSH.title"), new LocString("card_keywords", "AMBUSH.description")),
-        ];
-
         protected override IEnumerable<DynamicVar> CanonicalVars =>
         [
             new CardsVar(2),
-            new CardsVar("AmbushCards", 1),
         ];
 
         public SnowfieldDash()
@@ -57,18 +41,24 @@ namespace lingdawnpao.Core
 
         protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
         {
-            decimal cards = DynamicVars.Cards.BaseValue;
-            if (AmbushZone.IsVeteranAmbush(this))
-            {
-                cards += DynamicVars["AmbushCards"].BaseValue;
-            }
+            await CardPileCmd.Draw(choiceContext, DynamicVars.Cards.BaseValue, Owner);
 
-            await CardPileCmd.Draw(choiceContext, cards, Owner);
+            CardModel? picked = (await CardSelectCmd.FromHand(
+                context: choiceContext,
+                player: Owner,
+                prefs: new CardSelectorPrefs(SelectionScreenPrompt, 1),
+                filter: null,
+                source: this)).FirstOrDefault();
+
+            if (picked != null)
+            {
+                await AmbushZone.BuryAsync(choiceContext, picked, Owner, spendResources: false);
+            }
         }
 
         protected override void OnUpgrade()
         {
-            DynamicVars.Cards.UpgradeValueBy(1m); // 抽 2 → 3（埋伏那 1 张刻意不升）
+            DynamicVars.Cards.UpgradeValueBy(1m); // 抽 2 → 3
         }
     }
 }

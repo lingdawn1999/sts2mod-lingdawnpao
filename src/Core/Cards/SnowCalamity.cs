@@ -82,7 +82,7 @@ namespace lingdawnpao.Core
         ];
 
         public SnowCalamity()
-            : base(2, CardType.Skill, CardRarity.Uncommon, TargetType.AllEnemies)
+            : base(1, CardType.Skill, CardRarity.Uncommon, TargetType.AllEnemies)
         {
         }
 

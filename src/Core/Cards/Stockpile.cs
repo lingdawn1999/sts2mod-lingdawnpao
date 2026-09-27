@@ -1,32 +1,35 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
+using MegaCrit.Sts2.Core.CardSelection;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Models.Powers;
 
 namespace lingdawnpao.Core
 {
     /// <summary>
-    /// 蓄能：**0 费普通（白卡）技能**（通用/运转轴），**获得 1 点能量，自带[gold]消耗[/gold]**
-    /// （升级：能量 1 → 2）。**当回合结算**，不亏节奏——这是本 mod 唯一一张"无条件、不吃当回合节奏"的加费件。
+    /// 蓄能：**1 费普通（白卡）技能**，**选择 1 张手牌加入[gold]伏击区域[/gold]，下回合获得 2 点能量**
+    /// （升级：能量 2 → 3，并**去掉[gold]消耗[/gold]**）。能量的"下回合"结算复用本体「备战」
+    /// Outmaneuver 的 <c>EnergyNextTurnPower</c>（零新增视觉/联机成本，层数可叠加）。
     /// <para>
-    /// **2026-09-23 用户重做（原为 1 费 / 下回合获得 2 点能量）**：老版本是本体「备战」Outmaneuver 的直搬，
-    /// 用户判定"**作为加费卡非常非常劣质**"——它当回合要**净亏 1 费和一张牌**，换来的只是"下回合多 2 费"，
-    /// 总量净 +1 且延后一回合，等于把节奏白让出去。新版采纳"**0 费才算稳定加费**"的口径：
-    /// 直接收编原「雪原疾行」的效果，**把加费件下沉到白卡**。
+    /// **2026-09-27 用户重做（三进宫，记全沿革防走回头路）**：
+    /// ① 初版 = 本体「备战」直搬（1 费 / 下回合 2 能量）——2026-09-23 用户判定"作为加费卡非常劣质"
+    ///   （当回合净亏 1 费 + 一张牌），改成 0 费当回合 +1 能量 + 消耗；
+    /// ② 2026-09-23 第二轮：收编原「雪原疾行」的"白卡给费"定位（白卡给费、蓝卡给牌）；
+    /// ③ **本版（2026-09-27 用户定稿）**：回到"1 费 / 下回合 2 能量"的老骨架，但**挂上"选 1 张手牌入区"**
+    ///   作为卖点——花 1 费买"埋一格 + 下回合 2 费"的组合，净收益 +1 费延后到手，埋牌那张还是自选的。
+    /// 升级从"能量+1"升级为"能量+1 且去消耗"：可重复使用后它是后期每回合稳定 +1 费的小引擎。
     /// </para>
     /// <para>
-    /// **为什么必须自带「消耗」**：0 费换 1 点能量本身就是净赚 1 费，不设限就能反复白嫖
-    /// （甚至在没有费用压力时当"过牌/缩牌组"用），所以用一次性把它压住。这也是它可以留在**白卡**的原因——
-    /// 同类更强的档位见本体「肾上腺素」Adrenaline（0 费、+1 能量、**抽 2 张**、消耗），它明显在更高的稀有度档。
-    /// </para>
-    /// <para>
-    /// **与「雪原疾行」的分工（2026-09-23 两张互换）**：加费件下沉白卡后，蓝卡「雪原疾行」腾出来重做成了
-    /// **稳定过牌件**（1 费抽 2）。两条运转轴各归其位：**白卡给费、蓝卡给牌**——
-    /// 用户 2026-09-23 的诊断是"缺乏稳定加费卡和稳定过牌卡"，这两张就是补那两个洞的。
+    /// **埋入路径**：照暗杀者遗物的手牌埋入（<see cref="AmbushZone.BuryAsync" />，`spendResources: false`，
+    /// 手牌 holder 释放 + 飞入动画同一套管线）；区域已满 / 冷却时埋不进，选中的牌留在手里
+    /// （照「设伏」既有约定），能量照常结算。选牌走 <c>CardSelectCmd.FromHand</c>：姿态牌被
+    /// <see cref="CardSelectCmd_FromHand_AmbushStanceFilterPatch" /> 的过滤自动排除。
     /// </para>
     /// </summary>
     public sealed class Stockpile : CardModel, ILingdawnpaoCard
@@ -34,28 +37,44 @@ namespace lingdawnpao.Core
         protected override IEnumerable<IHoverTip> ExtraHoverTips =>
         [
             EnergyHoverTip,
+            HoverTipFactory.FromPower<EnergyNextTurnPower>(),
         ];
 
         protected override IEnumerable<DynamicVar> CanonicalVars =>
         [
-            new EnergyVar(1),
+            new EnergyVar(2),
         ];
 
         public override IEnumerable<CardKeyword> CanonicalKeywords => new[] { CardKeyword.Exhaust };
 
         public Stockpile()
-            : base(0, CardType.Skill, CardRarity.Common, TargetType.Self)
+            : base(1, CardType.Skill, CardRarity.Common, TargetType.Self)
         {
         }
 
         protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
         {
-            await PlayerCmd.GainEnergy(DynamicVars.Energy.IntValue, Owner);
+            CardModel? picked = (await CardSelectCmd.FromHand(
+                context: choiceContext,
+                player: Owner,
+                prefs: new CardSelectorPrefs(SelectionScreenPrompt, 1),
+                filter: null,
+                source: this)).FirstOrDefault();
+
+            if (picked != null)
+            {
+                await AmbushZone.BuryAsync(choiceContext, picked, Owner, spendResources: false);
+            }
+
+            // 下回合能量：复用本体「备战」Outmaneuver 的 EnergyNextTurnPower（层数叠加）
+            await PowerCmd.Apply<EnergyNextTurnPower>(
+                choiceContext, Owner.Creature, DynamicVars.Energy.IntValue, Owner.Creature, this);
         }
 
         protected override void OnUpgrade()
         {
-            DynamicVars.Energy.UpgradeValueBy(1m); // 1 → 2
+            DynamicVars.Energy.UpgradeValueBy(1m); // 下回合 2 → 3
+            RemoveKeyword(CardKeyword.Exhaust);    // 升级去掉消耗（照「翻雪」）
         }
     }
 }
