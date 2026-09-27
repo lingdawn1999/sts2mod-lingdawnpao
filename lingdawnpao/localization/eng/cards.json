@@ -122,7 +122,7 @@
   "SNOWBALL_FIGHT.title": "Snowball Fight",
   "SNOWBALL_FIGHT.description": "Add {Snowballs:diff()} [gold]Snowball(s)[/gold] into your [gold]Hand[/gold].",
   "CARNIVAL_MOMENT.title": "Carnival Moment",
-  "CARNIVAL_MOMENT.description": "Each turn, after each time you apply [gold]Frostbite[/gold], your next [gold]Frostbite[/gold] this turn applies +1 stack.",
+  "CARNIVAL_MOMENT.description": "When you apply [gold]Frostbite[/gold], your next [gold]Frostbite[/gold] this turn applies +1 stack.",
   "BIG_SNOWBALL_VOLLEY.title": "Big Snowball!",
   "BIG_SNOWBALL_VOLLEY.description": "Add {Snowballs:diff()} [gold]Big Snowball(s)[/gold] into your [gold]Hand[/gold].",
   "SNOWFIELD.title": "Snowfield",

@@ -122,7 +122,7 @@
   "SNOWBALL_FIGHT.title": "打雪仗",
   "SNOWBALL_FIGHT.description": "将{Snowballs:diff()}张[gold]雪球[/gold]加入你的手牌。",
   "CARNIVAL_MOMENT.title": "狂欢时刻",
-  "CARNIVAL_MOMENT.description": "每回合，你每次造成[gold]冰冻[/gold]后，当前回合你下一次造成的[gold]冰冻[/gold]层数+1。",
+  "CARNIVAL_MOMENT.description": "当你造成[gold]冰冻[/gold]时，本回合下次造成的[gold]冰冻[/gold]层数+1。",
   "BIG_SNOWBALL_VOLLEY.title": "大雪球！",
   "BIG_SNOWBALL_VOLLEY.description": "将{Snowballs:diff()}张[gold]大雪球[/gold]加入你的手牌。",
   "SNOWFIELD.title": "雪场",
