@@ -71,21 +71,16 @@ namespace lingdawnpao.Core
                     await PowerCmd.ModifyAmount(new ThrowingPlayerChoiceContext(), intensify, 1m, applier, cardSource);
                 }
 
-                // 「狂欢时刻」（2026-09-27 用户重做：从"雪球挂冰+固定层数"改为**溅射全体**）：
-                // 雪球/大雪球的挂冰改为对**全体敌人**结算（含原目标，全体同一层数）。
-                // 层数 = 原层数 +（Amount - 1：基础 1=纯开关加 0，升级 2=全体 +1）。
-                // 走批量入口：内部 _batchDepth > 0，递归进来的单敌结算不再触发溅射/凝寒计次；
-                // 「雪隐」格挡回调整批只一次。自动打出雪球的来源（发射器/打雪仗/雪场）同样吃溅射
-                // （cardSource 都是那张雪球）。
-                if (cardSource is Snowball or BigSnowball
-                    && target.IsEnemy
-                    && applier.GetPower<CarnivalMomentPower>() is { Amount: > 0 }
-                    && _batchDepth == 0)
+                // 「狂欢时刻」（2026-09-27 用户三改：溅射的"永久全局修正"太猎奇 → **回合内滚动加成**，3 费）：
+                // 当前回合你每造成 1 次冰冻，本回合**下一次**冰冻的层数 +1（首次 +0，逐次递增；回合开始重置）。
+                // Amount 从 1 起（纯标记 + 计数），加成 = Amount - 1；每结算一次 +1。
+                // 只在顶层施加结算（_batchDepth == 0）：暴风雪这类批量挂冰整批算 1 次，
+                // 同一批内全体敌人吃同一个加成值。与「凝寒」的成长计数相互独立、同时生效。
+                CarnivalMomentPower? carnival = applier.GetPower<CarnivalMomentPower>();
+                if (carnival != null && _batchDepth == 0)
                 {
-                    decimal splashed = stacks + (applier.GetPower<CarnivalMomentPower>()!.Amount - 1m);
-                    await ApplyFrostToAllAsync(choiceContext, applier.CombatState!.HittableEnemies,
-                        splashed, applier, cardSource);
-                    return target.GetPower<FrostbitePower>();
+                    stacks += carnival.Amount - 1m;
+                    await PowerCmd.ModifyAmount(new ThrowingPlayerChoiceContext(), carnival, 1m, applier, cardSource);
                 }
             }
 
