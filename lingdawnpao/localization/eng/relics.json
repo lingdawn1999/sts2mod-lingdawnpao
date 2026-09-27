@@ -1,9 +1,9 @@
 {
   "FROST_FANG.title": "Ambusher",
-  "FROST_FANG.description": "Right-click to toggle between normal form and Ambush form. While in Ambush form, cards you play go into the Ambush zone; in normal form, playing a card brings out the oldest card in your Ambush zone.",
+  "FROST_FANG.description": "You can switch to [gold]Ambush form[/gold]. The first [gold]Power[/gold] card you play each turn raises your [gold]Ambush zone[/gold] capacity by 1. (Base capacity 3)",
   "FROST_FANG.flavor": "“Lurk in the dark, and wait for the moment.”",
   "ASSASSIN.title": "Assassin",
-  "ASSASSIN.description": "Right-click to toggle between normal form and Ambush form. While in Ambush form, cards you play go into the Ambush zone; in normal form, playing a card brings out the oldest card in your Ambush zone. Your [gold]Ambush zone[/gold] capacity is increased by [blue]1[/blue]. At the start of your turn, you may add a card from your hand into your [gold]Ambush zone[/gold].",
+  "ASSASSIN.description": "You can switch to [gold]Ambush form[/gold]. Each turn, you may add a card from your hand into your [gold]Ambush zone[/gold] for free. The first [gold]Power[/gold] card you play each turn raises your [gold]Ambush zone[/gold] capacity by 1. (Base capacity 4)",
   "ASSASSIN.flavor": "You have already mastered the tricks of the hunt.",
   "ASSASSIN.selectionScreenPrompt": "Select a card to add into your [gold]Ambush zone[/gold]."
 }
