@@ -7,4 +7,6 @@ libs/
 *.pck
 # 开发日志仅本地保留，不入库
 开发进度日志.md
+# 上传器运行日志
+mod-uploader.log
 
