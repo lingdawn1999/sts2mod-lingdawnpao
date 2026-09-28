@@ -103,7 +103,7 @@ namespace lingdawnpao.Core
                     zone.IsOverloaded = false;
                 }
 
-                // 「十万埋伏」的伤害成长按"本场战斗"计，进战斗必须归零（重复进战斗时同理）
+                // 「十面埋伏」的伤害成长按"本场战斗"计，进战斗必须归零（重复进战斗时同理）
                 zone.AmbushDamageCount = 0;
                 zone.PowerCapacityUsedThisTurn = false;
             }
@@ -176,11 +176,12 @@ namespace lingdawnpao.Core
         //    「珍藏」是 2026-09-24 加进来的成员：它检索到带[gold]埋伏[/gold]词条的牌会**直接埋入区域**，
         //    遗物不豁免的话"刚塞进去的一张就被立刻带出来"，直接入区的意义当场作废。
         //    「雪球技巧」同日加进来：它会当场用「雪球」填满区域，同样必须豁免 + 卡内自带出旧牌。
+        //    「冰镜」2026-09-28 加进来：手牌复制改为直接埋入区域（照「珍藏」的不扣费路径），同规矩豁免 + 卡内自带出旧牌。
         //    （「雪拥」曾短暂进过这张名单，随它回退成纯通用格挡件而一并移除——别再加回来。）
         public override async Task AfterCardPlayed(PlayerChoiceContext choiceContext, CardPlay cardPlay)
         {
             Player? owner = Owner;
-            if (owner == null || cardPlay.IsAutoPlay)
+            if (owner == null)
             {
                 return;
             }
@@ -188,9 +189,11 @@ namespace lingdawnpao.Core
             AmbushZoneState zone = AmbushZone.For(owner);
 
             // **每回合首次使用能力牌 → 上限+1**（2026-09-27 新规则）：
-            // 只认手动打出的能力牌（带出自动打出的 IsAutoPlay 已在上面拦掉）；
-            // 伏击形态下埋掉的能力牌不走出牌流程、不进本钩子，自然也不算"使用"。
-            // 张网以待/扩张之外的普通能力牌（姿态牌、凝寒等）也能触发——能力牌打出自带扩容价值。
+            // 伏击形态下埋掉的能力牌不走出牌流程、不进本钩子，自然不算"使用"；
+            // **带出打出的能力牌也算"使用"**（2026-09-28 用户报障修复：原先 IsAutoPlay 在钩子
+            // 开头就早退，导致从伏击区带出的能力牌永远触发不了扩容——带出走 AutoPlay，
+            // IsAutoPlay 恒为 true，故这个判断必须放在 IsAutoPlay 闸门**之前**）。
+            // 自动打出来源不限（遗物/其它卡的效果自动打出的能力牌同样算），反正每回合只有首次生效。
             // 扩容走统一入口（硬顶 9，见 AmbushZone.AddCapacityAsync）。
             if (cardPlay.Card.Type == CardType.Power && cardPlay.Card.Owner == owner
                 && !zone.PowerCapacityUsedThisTurn)
@@ -200,9 +203,15 @@ namespace lingdawnpao.Core
                 Flash();
             }
 
+            // 带出打出的牌（IsAutoPlay）不再触发"非伏击形态带出"，防连锁——扩容判断在上面已完成
+            if (cardPlay.IsAutoPlay)
+            {
+                return;
+            }
+
             // ── 以下为"非伏击形态带出"逻辑，豁免名单与口径见下方原注释 ──
             if (cardPlay.Card is TigerCombo or SetAmbush or Hunt or EternalBreath or BodyPounce or SnowCalamity or Regroup or Trove or SnowballTechnique
-                or Stockpile or SnowfieldDash or SnowSift)
+                or Stockpile or SnowfieldDash or SnowSift or IceMirror)
             {
                 return;
             }
@@ -224,7 +233,7 @@ namespace lingdawnpao.Core
         }
 
         /// <summary>
-        /// 「十万埋伏」的成长记账：**本场战斗中，你的伏击牌每造成一次伤害，计数 +1**
+        /// 「十面埋伏」的成长记账：**本场战斗中，你的伏击牌每造成一次伤害，计数 +1**
         /// （记在 <see cref="AmbushZoneState.AmbushDamageCount" /> 上，卡打出时按它换算伤害）。
         /// <para>
         /// **口径**（对应 2026-09-24 用户定的"本场战斗你每因伏击造成过一次伤害"）：
@@ -268,7 +277,7 @@ namespace lingdawnpao.Core
 
             AmbushZoneState zone = AmbushZone.For(owner);
             Status = zone.IsAmbushMode ? RelicStatus.Active : RelicStatus.Normal;
-            zone.AmbushDamageCount = 0;   // 「十万埋伏」的成长是"本场战斗"口径，战后清账
+            zone.AmbushDamageCount = 0;   // 「十面埋伏」的成长是"本场战斗"口径，战后清账
             await AmbushZone.ReturnBuriedCardsAsync(owner);
             Log.Info($"伏击者：战斗结束，区域已清空（伏击形态仍为 {zone.IsAmbushMode}）");
         }

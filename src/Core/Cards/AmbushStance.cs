@@ -54,7 +54,7 @@ namespace lingdawnpao.Core
         /// 只认持有者自己的伏击状态；卡牌百科里的本体实例没有 Owner，一律按常规形态显示。
         /// </summary>
         public bool IsInAmbushForm =>
-            Owner is { PlayerCombatState: not null } player && AmbushZone.For(player).IsAmbushMode;
+            IsMutable && Owner is { PlayerCombatState: not null } player && AmbushZone.For(player).IsAmbushMode;
 
         /// <summary>
         /// 卡图钉死在雪豹目录（同 <see cref="AmbushStrike" /> 的说明），**按形态换图**。

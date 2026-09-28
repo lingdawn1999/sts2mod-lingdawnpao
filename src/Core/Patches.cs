@@ -117,9 +117,37 @@ namespace lingdawnpao.Core
             }
 
             Log.Info($"伏击者：伏击形态，拦截出牌 {card.Id.Entry} → 入队埋牌动作");
+            PendingBuryVisual.Register(__instance); // 记住 holder：埋牌若在队列里被跳过，把卡面还回手牌
             RunManager.Instance.ActionQueueSynchronizer.RequestEnqueue(new BuryCardAction(card));
             CleanupMethod.Invoke(__instance, new object[] { true });
             return false;
+        }
+    }
+
+    /// <summary>
+    /// 卡面节点池复用复位补丁（对"透明卡/幽灵卡"bug 的釜底抽薪修复，2026-09-28）：
+    /// <para>
+    /// <see cref="NCard.OnReturnedFromPool" /> 内部有 <c>IsNodeReady()</c> 闸门——而归池的节点
+    /// 都是被 QueueFreeSafely **先移出场景树**再延迟归池的，取出瞬间节点仍不在树内，闸门为 false，
+    /// 内部复位（透明度/缩放/可见性/绑定清理）**整体跳过**。于是下一个从池里拿到该节点的界面
+    /// （手牌、卡牌奖励、查看堆）原样继承上一张卡渐隐到一半的 modulate 与缩放
+    /// ——就是用户看到的"透明卡/黑卡，卡位还在还能打出"。
+    /// </para>
+    /// <para>
+    /// 本补丁在每次取出后**强制补复位**最关键的视觉字段；取用方（NCard.Create 等）随后会
+    /// 重设 Model 与布局，不存在冲突。纯视觉层修补，不改任何游戏状态。
+    /// </para>
+    /// </summary>
+    [HarmonyPatch(typeof(NCard), nameof(NCard.OnReturnedFromPool))]
+    internal static class NCard_OnReturnedFromPool_ForceResetPatch
+    {
+        private static void Postfix(NCard __instance)
+        {
+            __instance.Modulate = Colors.White;
+            __instance.Visible = true;
+            __instance.Scale = Vector2.One;
+            __instance.Rotation = 0f;
+            __instance.Position = Vector2.Zero;
         }
     }
 
@@ -677,7 +705,7 @@ namespace lingdawnpao.Core
     /// 「草丛」（遗物）：从[gold]伏击区域[/gold]带出的攻击牌伤害+2——2026-09-27 用户定稿。
     /// <para>
     /// 挂点选 <c>CreatureCmd.Damage</c> 的**核心重载**（带 targets/amount/cardSource 的那个，
-    /// 狩猎形态补丁同款位置）：所有卡牌伤害的必经收口。筛选条件与「十万埋伏」的记账同口径：
+    /// 狩猎形态补丁同款位置）：所有卡牌伤害的必经收口。筛选条件与「十面埋伏」的记账同口径：
     /// ① <see cref="AmbushZone.IsAmbushPlay" />（这张伤害来自带出的伏击牌——跨回合潜伏过的）；
     /// ② 只吃[gold]攻击[/gold]伤害（IsPoweredAttack，撕裂/挂冰等 Unpowered 不吃）；
     /// ③ 施加者带草丛。多段攻击每段各+2（照"伤害+2"的口径）。

@@ -17,6 +17,7 @@ using MegaCrit.Sts2.Core.Logging;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Powers;
 using MegaCrit.Sts2.Core.Nodes.Cards;
+using MegaCrit.Sts2.Core.Nodes.Cards.Holders;
 using MegaCrit.Sts2.Core.Nodes.Combat;
 using MegaCrit.Sts2.Core.Nodes.Rooms;
 using MegaCrit.Sts2.Core.Nodes.Vfx.Cards;
@@ -99,9 +100,9 @@ namespace lingdawnpao.Core
         public bool PowerCapacityUsedThisTurn { get; set; }
 
         /// <summary>
-        /// **本场战斗中，你的伏击牌造成过伤害的次数**（「十万埋伏」的伤害成长依据）。
+        /// **本场战斗中，你的伏击牌造成过伤害的次数**（「十面埋伏」的伤害成长依据）。
         /// 由 <see cref="FrostFang" /> 在 <c>AfterDamageGiven</c> 里累加、进战斗时归零。
-        /// 计的是**伤害结算次数**（多段攻击 = 多次），口径与旧「十万埋伏」能力的触发口径一致。
+        /// 计的是**伤害结算次数**（多段攻击 = 多次），口径与旧「十面埋伏」能力的触发口径一致。
         /// </summary>
         public int AmbushDamageCount { get; set; }
 
@@ -353,7 +354,7 @@ namespace lingdawnpao.Core
             1 + (player.Creature.GetPower<AmbushEchoPower>()?.ExtraTriggers ?? 0);
 
         /// <summary>
-        /// 本场战斗中该玩家的伏击牌造成过伤害的次数（「十万埋伏」的动态伤害用）。
+        /// 本场战斗中该玩家的伏击牌造成过伤害的次数（「十面埋伏」的动态伤害用）。
         /// 只读查询：不建条目，所以**战斗外（牌组/收藏界面预览卡面）也安全**，返回 0。
         /// </summary>
         public static int AmbushDamageCount(Player player) =>
@@ -389,6 +390,26 @@ namespace lingdawnpao.Core
                 }
             }
             AmbushZoneUi.Prepare();
+            // **手工完成本体出牌的节点交接**（"卡牌卡在屏幕中间"bug 的根治，2026-09-28）：
+            // 本体把卡面从手牌 holder 摘出、挂进出牌容器并释放 holder，发生在 PlayCardAction
+            // 入队时（NCardPlayQueue.OnLocalCardPlayed）；埋牌动作不是 PlayCardAction，
+            // 这一步不会发生。不补上它，下面 AddDuringManualCardPlay 里的 hand.Remove(model)
+            // 释放 holder 时卡面还挂在 holder 下（holder 延迟销毁、当帧仍活着），
+            // 随后 AddChild to PlayContainer 抛 "already has a parent" → 埋牌结算炸断
+            // → 模型困在出牌堆、卡面冻在屏幕中间（2026-09-28 日志 191521 实锤）。
+            if (LocalContext.IsMe(player) && NCombatRoom.Instance != null)
+            {
+                NCard? handNode = NCard.FindOnTable(card);
+                if (handNode?.GetParent() is NHandCardHolder holder && NCombatRoom.Instance.Ui?.Hand != null)
+                {
+                    // 节点先脱离 holder 挂进出牌容器（保住全局坐标），holder 再安全释放；
+                    // 节点挂在 PlayContainer 下，AddDuringManualCardPlay 的 FindOnTable
+                    // 能经 GetCardFromPlayContainer 找到它，不会重复创建。
+                    handNode.Reparent(NCombatRoom.Instance.Ui.PlayContainer);
+                    NCombatRoom.Instance.Ui.Hand.RemoveCardHolder(holder);
+                    Log.Info("伏击区域：已手工完成埋牌的卡面/holder 交接");
+                }
+            }
             // 官方"手动出牌"流程负责把手牌 holder 正确释放（直接 RemoveFromCurrentPile 会让卡面残留），
             // 但它会把牌塞进出牌堆并启动一个飞向屏幕中心的 tween。
             await CardPileCmd.AddDuringManualCardPlay(card);
@@ -396,7 +417,8 @@ namespace lingdawnpao.Core
             // 的计算属性，移出后 card.Pile 为 null，FindOnTable 直接返回 null，视觉就永远不执行。
             NCard? node = NCard.FindOnTable(card, PileType.Play);
             card.RemoveFromCurrentPile();
-            if (node != null && NCombatRoom.Instance != null)
+            NCombatUi? ui = NCombatRoom.Instance?.Ui;
+            if (node != null && ui != null)
             {
                 node.PlayPileTween?.Kill();
                 node.PlayPileTween = null;
@@ -405,10 +427,10 @@ namespace lingdawnpao.Core
                 Vector2 worldPos = node.GlobalPosition;
                 Control parent = node.GetParent<Control>();
                 parent?.RemoveChildSafely(node);
-                NCombatRoom.Instance.Ui.AddChildSafely(node);
+                ui.AddChildSafely(node);
                 node.GlobalPosition = worldPos;
 
-                NCreature? creatureNode = NCombatRoom.Instance.GetCreatureNode(player.Creature);
+                NCreature? creatureNode = NCombatRoom.Instance?.GetCreatureNode(player.Creature);
                 Vector2 destination = AmbushZoneUi.GetCenter() ?? creatureNode?.GlobalPosition ?? node.GlobalPosition;
                 Tween tween = node.CreateTween().SetParallel();
                 tween.TweenProperty(node, "global_position", destination, 0.3f)
@@ -420,7 +442,7 @@ namespace lingdawnpao.Core
                 {
                     if (GodotObject.IsInstanceValid(node))
                     {
-                        NCombatRoom.Instance.Ui.AddChildSafely(ExhaustVfxCompat.CreateVfx(node));
+                        ui.AddChildSafely(ExhaustVfxCompat.CreateVfx(node));
                         node.QueueFreeSafely();
                     }
                 }));

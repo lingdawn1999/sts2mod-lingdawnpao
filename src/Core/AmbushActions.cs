@@ -1,4 +1,6 @@
+using System;
 using System.Threading.Tasks;
+using HarmonyLib;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Multiplayer;
 using MegaCrit.Sts2.Core.Entities.Players;
@@ -7,6 +9,9 @@ using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Logging;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Multiplayer.Serialization;
+using MegaCrit.Sts2.Core.Nodes.Cards.Holders;
+using MegaCrit.Sts2.Core.Nodes.Combat;
+using MegaCrit.Sts2.Core.Nodes.Rooms;
 
 namespace lingdawnpao.Core
 {
@@ -45,6 +50,7 @@ namespace lingdawnpao.Core
             if (card == null)
             {
                 Log.Info("伏击者：埋牌动作找不到对应的牌（可能已不在战斗中），跳过");
+                PendingBuryVisual.Resolve(buried: true); // 牌已不在局内，无从归还
                 return;
             }
 
@@ -55,16 +61,75 @@ namespace lingdawnpao.Core
                 || !card.CanPlay(out UnplayableReason _, out AbstractModel? _))
             {
                 Log.Info($"伏击者：埋牌动作条件不再满足（牌堆={pile?.Type}，区域={zone.Count}/{zone.Capacity}，冷却={zone.IsCoolingDown}），跳过");
+                // 关键：此时卡面 holder 还挂在 NPlayerHand 的等待队列里无人认领，
+                // 必须归还手牌，否则就是"隐形但可打出的牌"（2026-09-28 用户报障）
+                PendingBuryVisual.Resolve(buried: false);
                 return;
             }
 
             Log.Info($"伏击者：执行埋牌 {card.Id.Entry}（玩家 {Player.NetId}）");
             await AmbushZone.BuryAsync(new GameActionPlayerChoiceContext(this), card, Player);
+            PendingBuryVisual.Resolve(buried: true);
         }
 
         public override INetAction ToNetAction() => new NetBuryCardAction { card = NetCard };
 
         public override string ToString() => $"BuryCardAction card: {NetCard.ToCardModelOrNull()} index: {NetCard.CombatCardIndex}";
+    }
+
+    /// <summary>
+    /// 埋牌跳过时的**视觉回滚**（对"卡牌消失但卡位还在、还能打出"bug 的修复，2026-09-28）：
+    /// <para>
+    /// **病灶**：拦截出牌时 <c>NCardPlay.Cleanup(true)</c> 发出 Finished(success=true)，
+    /// 手牌的 <see cref="NHandCardHolder" /> 被挂进 NPlayerHand 的 _holdersAwaitingQueue，
+    /// 等"队列里的出牌动作"来收走（本体出牌就是这样交接的）。本 mod 队列里排的是
+    /// <see cref="BuryCardAction" /> 而不是本体出牌动作——它执行成功时由
+    /// <c>AmbushZone.BuryAsync</c> 的 AddDuringManualCardPlay 亲手收走 holder；
+    /// 但若执行时条件不再满足（区域被塞满 / 进入冷却 / 牌变得不可打）而**跳过**，
+    /// holder 就永远无人认领：卡面节点消失、模型还在手牌堆 → **隐形可打出的牌**。
+    /// 区域只剩 1 格时快速连埋两张即可复现。
+    /// </para>
+    /// <para>
+    /// **修法**：拦截时记住被挂起的 holder；埋牌动作执行失败时照本体 Finished(false) 的路径
+    /// 反射调 <c>NPlayerHand.ReturnHolderToHand</c> 把卡面按模型插回原手牌槽位
+    /// （模型从未离开过手牌堆，插回位置正确）。NCardPlay 只存在于发起拦截的本地端，
+    /// 其余客户端 pending 为空，Resolve 是空操作——联机安全。
+    /// </para>
+    /// </summary>
+    internal static class PendingBuryVisual
+    {
+        private static NHandCardHolder? _pendingHolder;
+
+        /// <summary>拦截点调用：记住这次出牌的手牌 holder（在 Cleanup 之前取，holder 本身不会被释放）。</summary>
+        public static void Register(NCardPlay play) => _pendingHolder = play.Holder;
+
+        /// <summary>
+        /// 埋牌动作结算后调用。<paramref name="buried" /> 为 true（埋成功了或牌已不在局内）只清登记；
+        /// 为 false（埋牌被跳过）时把 holder 归还手牌，消除隐形卡。
+        /// </summary>
+        public static void Resolve(bool buried)
+        {
+            NHandCardHolder? holder = _pendingHolder;
+            _pendingHolder = null;
+            if (buried || holder == null)
+            {
+                return;
+            }
+
+            try
+            {
+                if (NCombatRoom.Instance?.Ui?.Hand is NPlayerHand hand)
+                {
+                    AccessTools.Method(typeof(NPlayerHand), "ReturnHolderToHand")
+                        ?.Invoke(hand, new object?[] { holder });
+                    Log.Info("伏击者：埋牌未执行，卡面已归还手牌（隐形卡修复生效）");
+                }
+            }
+            catch (Exception e)
+            {
+                Log.Warn($"伏击者：归还埋牌卡面失败（{e.GetType().Name}: {e.Message}）");
+            }
+        }
     }
 
     public struct NetBuryCardAction : INetAction, IPacketSerializable
