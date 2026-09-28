@@ -58,38 +58,38 @@ namespace lingdawnpao.Core
         /// </summary>
         public static async Task<FrostbitePower?> ApplyFrostAsync(PlayerChoiceContext choiceContext, Creature target, decimal stacks, Creature? applier, CardModel? cardSource)
         {
-            // 「凝寒」（2026-09-27 用户重做：0→1 费，固定加成改**成长型**）：
-            // 你每次造成冰冻时，本次施加的层数额外 +「凝寒」当前层数；结算后凝寒 +1（下次更多）。
-            // 打出凝寒时先垫 1 层（计数含本次），所以第 1 次挂冰 +1、第 2 次 +2、第 n 次 +n。
-            // 计数与加成只在**顶层施加**做一次（_batchDepth == 0）：批量溅射内部的单敌结算
-            // 不重复计次，同一次溅射里全体敌人吃同一个加成值。冰封王座自挂（applier=null）不计数不加成。
+            // 「凝寒」（2026-09-28 用户定稿与「狂欢时刻」**对调**：金卡改拿回合内滚动，3 费）：
+            // 当前回合你每造成 1 次冰冻，本回合**下一次**冰冻的层数 +1（首次 +0，逐次递增；回合开始重置）。
+            // Amount 从 1 起（纯标记 + 计数），加成 = Amount - 1；每结算一次 +1。
+            // **对群分别生效（2026-09-28 用户追加定稿："之前强度太低了，拉一下"）**：
+            // 不设批次门槛——批量挂冰（暴风雪/溅射雪球等）里每个敌人各吃一次当前加成、
+            // 各推进一次计数（3 敌批 = +0/+1/+2 逐敌爬升）。冰封王座自挂（applier=null）不计数不加成。
             if (applier != null)
             {
                 FrostIntensifyPower? intensify = applier.GetPower<FrostIntensifyPower>();
-                if (intensify != null && _batchDepth == 0)
+                if (intensify != null)
                 {
-                    stacks += intensify.Amount;
+                    stacks += intensify.Amount - 1m;
                     await PowerCmd.ModifyAmount(new ThrowingPlayerChoiceContext(), intensify, 1m, applier, cardSource);
                 }
 
-                // 「狂欢时刻」（2026-09-27 用户三改：溅射的"永久全局修正"太猎奇 → **回合内滚动加成**，3 费）：
-                // 当前回合你每造成 1 次冰冻，本回合**下一次**冰冻的层数 +1（首次 +0，逐次递增；回合开始重置）。
-                // Amount 从 1 起（纯标记 + 计数），加成 = Amount - 1；每结算一次 +1。
-                // 只在顶层施加结算（_batchDepth == 0）：暴风雪这类批量挂冰整批算 1 次，
-                // 同一批内全体敌人吃同一个加成值。与「凝寒」的成长计数相互独立、同时生效。
-                CarnivalMomentPower? carnival = applier.GetPower<CarnivalMomentPower>();
-                if (carnival != null && _batchDepth == 0)
+                // 「狂欢时刻」（2026-09-28 用户定稿：雪球线群攻件，1 费）：雪球/大雪球造成的冰冻 +Amount（1/2），
+                // 溅射在 Snowball/BigSnowball.OnPlay 走批量入口。静态加成不设批次门槛——
+                // 单体挂冰与溅射批里的每个敌人吃同一个加成值。
+                // 自动打出雪球的来源（发射器/打雪仗/雪场）同样吃加成；自挂冰（applier=null）不吃。
+                if (cardSource is Snowball or BigSnowball)
                 {
-                    stacks += carnival.Amount - 1m;
-                    await PowerCmd.ModifyAmount(new ThrowingPlayerChoiceContext(), carnival, 1m, applier, cardSource);
-                }
+                    CarnivalMomentPower? carnival = applier.GetPower<CarnivalMomentPower>();
+                    if (carnival != null)
+                    {
+                        stacks += carnival.Amount;
+                    }
 
-                // 「雪球袋」（遗物，2026-09-27 用户定稿：供弹→增伤）：雪球/大雪球造成的冰冻层数 +2。
-                // 只认雪球系 cardSource——自动打出雪球的来源（发射器/打雪仗/雪场）同样吃加成；
-                // 自挂冰（applier=null）与其它卡牌的挂冰不吃。
-                if (cardSource is Snowball or BigSnowball && applier.Player?.GetRelic<SnowballPouch>() != null)
-                {
-                    stacks += 2m;
+                    // 「雪球袋」（遗物，2026-09-27 用户定稿：供弹→增伤）：雪球/大雪球造成的冰冻层数 +2。
+                    if (applier.Player?.GetRelic<SnowballPouch>() != null)
+                    {
+                        stacks += 2m;
+                    }
                 }
             }
 

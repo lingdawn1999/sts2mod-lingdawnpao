@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Commands;
@@ -55,8 +56,18 @@ namespace lingdawnpao.Core
                 .WithHitFx("vfx/vfx_attack_slash")
                 .Execute(choiceContext);
 
-            await FrostbitePower.ApplyFrostAsync(choiceContext, cardPlay.Target,
-                DynamicVars["FrostbitePower"].BaseValue, Owner.Creature, this);
+            // 「狂欢时刻」（2026-09-28 对调定稿）：大雪球的冰冻**溅射给所有敌人**（见 Snowball 同款说明）。
+            CarnivalMomentPower? carnival = Owner.Creature.GetPower<CarnivalMomentPower>();
+            if (carnival != null)
+            {
+                await FrostbitePower.ApplyFrostToAllAsync(choiceContext, CombatState!.HittableEnemies.ToList(),
+                    DynamicVars["FrostbitePower"].BaseValue, Owner.Creature, this);
+            }
+            else
+            {
+                await FrostbitePower.ApplyFrostAsync(choiceContext, cardPlay.Target,
+                    DynamicVars["FrostbitePower"].BaseValue, Owner.Creature, this);
+            }
         }
 
         protected override void OnUpgrade()
