@@ -18,6 +18,10 @@ namespace lingdawnpao.Core
     /// </summary>
     public sealed class EternalHunt : CardModel, ILingdawnpaoCard
     {
+        // 【保留】：3 费引擎常被"抽到了但费用不够"——没打出去会被回合结束丢进弃牌堆，
+        // 保留让它停在手牌里等有费且安全时再打（2026-09-28 用户要求）。
+        public override IEnumerable<CardKeyword> CanonicalKeywords => [CardKeyword.Retain];
+
         protected override IEnumerable<IHoverTip> ExtraHoverTips =>
         [
             HoverTipFactory.FromPower<EternalHuntPower>(),

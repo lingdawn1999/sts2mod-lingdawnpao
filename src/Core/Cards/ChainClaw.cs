@@ -38,7 +38,7 @@ namespace lingdawnpao.Core
 
         protected override IEnumerable<DynamicVar> CanonicalVars =>
         [
-            new DamageVar(5m, ValueProp.Move),
+            new DamageVar(6m, ValueProp.Move), // 2026-09-28 前期补强：单段 5 → 6（升级 8）
         ];
 
         public ChainClaw()
@@ -73,7 +73,7 @@ namespace lingdawnpao.Core
 
         protected override void OnUpgrade()
         {
-            DynamicVars.Damage.UpgradeValueBy(2m); // 每段 5 → 7（照本体双重打击）
+            DynamicVars.Damage.UpgradeValueBy(2m); // 每段 6 → 8
         }
     }
 }

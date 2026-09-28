@@ -34,8 +34,8 @@ namespace lingdawnpao.Core
 
         protected override IEnumerable<DynamicVar> CanonicalVars =>
         [
-            new DamageVar(5m, ValueProp.Move),
-            new DamageVar("AmbushDamage", 4m, ValueProp.Move),
+            new DamageVar(6m, ValueProp.Move), // 2026-09-28 前期补强：基础段 5 → 6
+            new DamageVar("AmbushDamage", 7m, ValueProp.Move), // 埋伏段 4 → 7
             new PowerVar<WeakPower>(1m),
         ];
 
@@ -59,18 +59,19 @@ namespace lingdawnpao.Core
                 var ambushDamage = (DamageVar)DynamicVars["AmbushDamage"];
                 for (int i = 0; i < AmbushZone.AmbushTriggerCount(Owner); i++)
                 {
+                    // 埋伏段只有伤害、不再补挂虚弱（2026-09-28 用户定稿：虚弱归基础段，随升级 1→2）
                     await DamageCmd.Attack(ambushDamage.BaseValue).FromCardCompat(this, cardPlay).Targeting(cardPlay.Target)
                         .WithHitFx("vfx/vfx_attack_slash")
                         .Execute(choiceContext);
-                    await PowerCmd.Apply<WeakPower>(choiceContext, cardPlay.Target, DynamicVars["WeakPower"].BaseValue, Owner.Creature, this);
                 }
             }
         }
 
         protected override void OnUpgrade()
         {
-            DynamicVars.Damage.UpgradeValueBy(2m);                       // 5 → 7（2026-09-23 基础段由 6 回削到 5）
-            DynamicVars["AmbushDamage"].UpgradeValueBy(2m);              // 4 → 6（虚弱不随升级成长）
+            DynamicVars.Damage.UpgradeValueBy(2m);                       // 基础段 6 → 8
+            DynamicVars["AmbushDamage"].UpgradeValueBy(2m);              // 埋伏段 7 → 9
+            DynamicVars["WeakPower"].UpgradeValueBy(1m);                 // 虚弱 1 → 2（2026-09-28 用户定稿）
         }
     }
 }
