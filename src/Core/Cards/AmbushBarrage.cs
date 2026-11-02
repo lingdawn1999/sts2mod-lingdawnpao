@@ -1,80 +1,125 @@
-using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
+using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
+using MegaCrit.Sts2.Core.Entities.Creatures;
+using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Models.Powers;
 using MegaCrit.Sts2.Core.ValueProps;
 
-namespace lingdawnpao.Core
+namespace lingdawnpao.Core;
+
+/// <summary>Persistent, per-player collection of distinct Ambush bonuses. Replays bonuses, never source cards.</summary>
+public sealed class AmbushBarrage : CardModel, IAmbushBonusCard
 {
-    /// <summary>
-    /// 十面埋伏：**2 费金卡攻击**。造成伤害——伤害 = **基础值 + 每层成长 × 本场战斗因伏击造成伤害的次数**。
-    /// <para>
-    /// **2026-09-24 新增、同日改版（用户定案）**：仿蕾忍「十亿响刀落」/酒狐「剑术大师」那种"输出终端"，
-    /// 用来补本 mod 的**金卡攻击浓度**（此前金卡里攻击件偏少、体系件偏多）。
-    /// 初版是"挂一个能力，伏击牌每造成一次伤害就随机再打一下"，用户改为**伤害成长型**：
-    /// 原话"造成x点伤害。本场战斗你每因伏击造成过一次伤害，此牌伤害增加y"。
-    /// </para>
-    /// <para>
-    /// **两版的差别**（改版后旧的「十面埋伏」能力已删）：
-    /// 旧版是"**持续输出**"（能力在场时每一次伏击伤害都额外打一下，赚的是攻击次数）；
-    /// 新版是"**单点爆发**"（把已积累的伏击战绩一次性折算成一张大攻击，赚的是这一张的伤害）。
-    /// 新版更符合"金卡终端"的节奏——玩家一路铺垫、最后一击收尾，而不是开局先打它铺能力。
-    /// 记账点见 `FrostFang.AfterDamageGiven`，字段是 `AmbushZoneState.AmbushDamageCount`。
-    /// </para>
-    /// <para>
-    /// **动态伤害走本体标准三件套**（照本体「完美打击」<c>PerfectedStrike</c>）：
-    /// `CalculationBaseVar`（基础）+ `ExtraDamageVar`（每层成长）+ `CalculatedDamageVar.WithMultiplier`（层数来源）。
-    /// 这样卡面显示的是**实时算好的伤害数字**（手牌里就能看到它随着伏击战绩变大），
-    /// 而且打出时由 `DamageCmd.Attack(DynamicVars.CalculatedDamage)` 直接取算好的值，不需要手写乘法。
-    /// </para>
-    /// <para>
-    /// ⚠️ **`Owner` 不判空**：与本体 `PerfectedStrike` 一致，卡面预览时框架保证卡有 owner
-    /// （预览回调本身就是"有归属才调"），多一层判空反而掩盖真问题。
-    /// </para>
-    /// <para>
-    /// 数值：基础 8、每层成长 4；**升级基础 12 + 每层成长 5**（2026-09-27 用户定案：
-    /// "升级改成打 12，每层成长 +5"——基础与成长轴同时抬，替代此前"只升基础"与"只升成长"两个中间版）。
-    /// </para>
-    /// </summary>
-    public sealed class AmbushBarrage : CardModel, ILingdawnpaoCard
+    private int _appliedCostGrowth;
+    public override IEnumerable<CardKeyword> CanonicalKeywords => [CardKeyword.Retain];
+    protected override IEnumerable<DynamicVar> CanonicalVars =>
+    [
+        new CalculationBaseVar(5m),
+        new ExtraDamageVar(4m),
+        new CalculatedDamageVar(ValueProp.Move).WithMultiplier((card, _) => AmbushZone.For(card.Owner).Effects.Count / 2),
+    ];
+
+    protected override IEnumerable<IHoverTip> ExtraHoverTips
     {
-        protected override IEnumerable<IHoverTip> ExtraHoverTips =>
-        [
-            new HoverTip(new LocString("card_keywords", "AMBUSH.title"), new LocString("card_keywords", "AMBUSH.description")),
-        ];
-
-        protected override IEnumerable<DynamicVar> CanonicalVars =>
-        [
-            new CalculationBaseVar(8m),
-            new ExtraDamageVar(4m),
-            new CalculatedDamageVar(ValueProp.Move).WithMultiplier((card, _) =>
-                AmbushZone.AmbushDamageCount(card.Owner)),
-        ];
-
-        public AmbushBarrage()
-            : base(2, CardType.Attack, CardRarity.Rare, TargetType.AnyEnemy)
+        get
         {
+            yield return new HoverTip(new LocString("card_keywords", "AMBUSH.title"),
+                new LocString("card_keywords", "AMBUSH.description"));
+            if (!IsMutable || Owner?.PlayerCombatState == null) yield break;
+            RecordedAmbush[] effects = AmbushZone.For(Owner).Effects.Snapshot();
+            var title = new LocString("cards", "AMBUSH_BARRAGE.collectedTitle");
+            title.Add("Count", effects.Length);
+            string summary = effects.Length == 0
+                ? new LocString("cards", "AMBUSH_BARRAGE.collectedEmpty").GetFormattedText()
+                : string.Join("\n", effects.Select(AmbushEffects.Describe));
+            yield return new HoverTip(title, summary);
+            if (effects.Any(effect => (effect.Kind is AmbushEffectKind.SneakAttack or AmbushEffectKind.DamBreak) && effect.Secondary > 0m))
+                yield return HoverTipFactory.FromPower<WeakPower>();
+            if (effects.Any(effect => effect.Kind == AmbushEffectKind.ThroatGrip && effect.Secondary > 0m))
+                yield return HoverTipFactory.FromPower<VulnerablePower>();
         }
+    }
 
-        protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
+    public AmbushBarrage() : base(0, CardType.Attack, CardRarity.Rare, TargetType.AnyEnemy) { }
+
+    protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
+    {
+        // Snapshot before resolving: replays cannot collect themselves or change this play's contents.
+        RecordedAmbush[] effects = AmbushZone.IsVeteranAmbush(this)
+            ? AmbushZone.For(Owner).Effects.Snapshot() : [];
+        bool allEnemies = effects.Any(effect => effect.Kind == AmbushEffectKind.AmbushPounce);
+        decimal bonus = effects.Where(effect => effect.Kind == AmbushEffectKind.AmbushPounce).Sum(effect => effect.Amount);
+        decimal damage = DynamicVars.CalculatedDamage.Calculate(cardPlay.Target) + bonus;
+        int triggers = AmbushZone.AmbushTriggerCount(Owner);
+        await AmbushEffectLedger.ResolveAsync(effects, triggers,
+            () => AttackAsync(choiceContext, cardPlay, damage, allEnemies),
+            effect => AmbushEffects.ResolveAsync(effect, this, choiceContext, cardPlay, allEnemies, bonus),
+            () => Owner.Creature.IsDead || CombatManager.Instance.IsOverOrEnding);
+    }
+
+    internal async Task AttackAsync(PlayerChoiceContext context, CardPlay play, decimal damage, bool allEnemies,
+        Creature? preferredTarget = null)
+    {
+        if (allEnemies)
         {
-            ArgumentNullException.ThrowIfNull(cardPlay.Target, "cardPlay.Target");
-
-            await DamageCmd.Attack(DynamicVars.CalculatedDamage).FromCardCompat(this, cardPlay).Targeting(cardPlay.Target)
-                .WithHitFx("vfx/vfx_attack_slash")
-                .Execute(choiceContext);
+            await DamageCmd.Attack(damage).FromCardCompat(this, play).TargetingAllOpponents(CombatState!)
+                .WithHitFx("vfx/vfx_attack_slash").Execute(context);
+            return;
         }
+        var target = preferredTarget ?? ResolveAttackTarget(play);
+        if (target == null || !target.IsAlive) return;
+        await DamageCmd.Attack(damage).FromCardCompat(this, play).Targeting(target)
+            .WithHitFx("vfx/vfx_attack_slash").Execute(context);
+    }
 
-        protected override void OnUpgrade()
+    internal Creature? ResolveAttackTarget(CardPlay play)
+    {
+        var target = play.Target;
+        if (target == null || !target.IsAlive)
         {
-            DynamicVars.CalculationBase.UpgradeValueBy(4m); // 基础 8 → 12（2026-09-27 用户定案）
-            DynamicVars.ExtraDamage.UpgradeValueBy(1m);     // 每层成长 4 → 5
+            var enemies = CombatState!.HittableEnemies;
+            if (enemies.Count == 0) return null;
+            target = Owner.RunState.Rng.CombatTargets.NextItem(enemies);
         }
+        return target;
+    }
+
+    public override Task AfterCardEnteredCombat(CardModel card)
+    {
+        if (card == this) ApplyCostGrowth(AmbushZone.For(Owner).Effects.Count);
+        return Task.CompletedTask;
+    }
+
+    public static void SyncCosts(Player player)
+    {
+        if (player.PlayerCombatState == null) return;
+        AmbushZoneState zone = AmbushZone.For(player);
+        foreach (AmbushBarrage card in player.PlayerCombatState.AllCards.Concat(zone.Cards).OfType<AmbushBarrage>().Distinct().ToArray())
+            card.ApplyCostGrowth(zone.Effects.Count);
+    }
+
+    private void ApplyCostGrowth(int count)
+    {
+        int costGrowth = count / 2;
+        int delta = costGrowth - _appliedCostGrowth;
+        if (delta == 0) return;
+        EnergyCost.AddThisCombat(delta);
+        _appliedCostGrowth = costGrowth;
+        InvokeEnergyCostChanged();
+    }
+
+    protected override void OnUpgrade()
+    {
+        DynamicVars.CalculationBase.UpgradeValueBy(3m);
+        DynamicVars.ExtraDamage.UpgradeValueBy(2m);
     }
 }

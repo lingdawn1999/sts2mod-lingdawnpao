@@ -16,8 +16,8 @@ namespace lingdawnpao.Core
 {
     /// <summary>
     /// 叠势（2026-09-24 用户定名；照「断腕/深咬」先例**只改显示名**，内部 key `SNOW_SURGE`
-    /// 与类名 `SnowSurge` 保持不变）：**1 费蓝卡攻击**。造成 6 点伤害，**本回合你每打出过一张牌，此伤害 +2**
-    /// （升级：基础 6 → 8、每张加成 2 → 3）。
+    /// 与类名 `SnowSurge` 保持不变）：**1 费蓝卡攻击**。造成 5 点伤害，**本回合你每打出过一张牌，此伤害 +3**
+    /// （升级：基础 5 → 7、每张加成 3 → 4）。
     /// <para>
     /// **2026-09-24 新增**（用户先定方向、再定数值）：起因是统计卡池类型配比后发现
     /// **蓝卡技能占 58%、攻击只有 25%**（本体基准大致攻/技各 40%），所以这最后一张补的是**攻击牌**；
@@ -47,8 +47,8 @@ namespace lingdawnpao.Core
     {
         protected override IEnumerable<DynamicVar> CanonicalVars =>
         [
-            new CalculationBaseVar(6m),
-            new ExtraDamageVar(2m),
+            new CalculationBaseVar(5m),
+            new ExtraDamageVar(3m),
             new CalculatedDamageVar(ValueProp.Move).WithMultiplier((card, _) => CardsPlayedThisTurn(card)),
         ];
 
@@ -84,8 +84,8 @@ namespace lingdawnpao.Core
 
         protected override void OnUpgrade()
         {
-            DynamicVars.CalculationBase.UpgradeValueBy(2m);   // 基础伤害 6 → 8
-            DynamicVars.ExtraDamage.UpgradeValueBy(1m);       // 每张加成 2 → 3
+            DynamicVars.CalculationBase.UpgradeValueBy(2m);   // 基础伤害 5 → 7
+            DynamicVars.ExtraDamage.UpgradeValueBy(1m);       // 每张加成 3 → 4
         }
     }
 }

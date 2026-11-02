@@ -43,6 +43,7 @@ namespace lingdawnpao.Core
         {
             // 先带出旧牌再埋新牌（设伏同款顺序，防自己埋的牌被自己带出——2026-09-27 用户指出）
             await AmbushZone.BringOutBeforeGenerateAsync(choiceContext, cardPlay.Target, Owner);
+            if (!AmbushZone.CanContinueCombat(Owner)) return;
 
             await CardPileCmd.Draw(choiceContext, DynamicVars.Cards.BaseValue, Owner);
 

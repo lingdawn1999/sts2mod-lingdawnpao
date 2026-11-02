@@ -21,7 +21,7 @@ namespace lingdawnpao.Core
     /// <see cref="AmbushZone.IsReadyForAmbush" />，三者必须同时覆盖这张卡，否则会出现
     /// "能触发埋伏但不亮框"（或反过来）的不一致。
     /// </para>
-    /// <para>当前成员（11 张）：偷袭、巧思、连环爪、扑杀、锁喉、屏息、磨爪、捕猎、暴风雪、霜牙、断腕。</para>
+    /// <para>包含雪爪突击与十面埋伏在内，所有带埋伏效果的牌均实现本接口。</para>
     /// </summary>
     public interface IAmbushBonusCard : ILingdawnpaoCard
     {

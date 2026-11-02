@@ -68,12 +68,14 @@ namespace lingdawnpao
             // ── ② 运行期桥接 / 运行期解析的补丁目标（两个分支形态不同的那几处，直接问它"解析到了吗"）──
             ("AttackCommand.FromCard（跨分支桥接）", true, AttackCommandCompat.Resolve),
             ("CreatureCmd.Damage（跨分支桥接）", true, CreatureCmdCompat.Resolve),
+            ("CardCmd.Exhaust（跨分支桥接）", true, CardCmdCompat.Resolve),
             // 狩猎形态"攻击无视格挡"的补丁挂点：群体伤害重载 public 6 参 / beta 7 参，
             // 探不到就必须拦下——那种情况下补丁会静默失效（不崩，但机制丢了）。
             ("CreatureCmd.Damage（群体 6/7 参 · 狩猎形态补丁挂点）", true,
                 () => CreatureCmd_Damage_CalamityFormPatch.TargetOrNull() != null),
             // ── ③ 视觉件（缺了只影响表现）──
             ("埋牌消散特效（NExhaustVfx / NCardExhaustVfx）", false, ExhaustVfxCompat.Resolve),
+            ("冰冻处决特效（NDoomVfx）", false, FrostExecutionVfx.Resolve),
         ];
 
         public static void Initialize()
@@ -86,6 +88,9 @@ namespace lingdawnpao
             // 骨架资源预热（2026-09-23「进 boss 关全场无模型 + 存档重进黑屏」事故的防线之一）：
             // 在初始化这个干净时机把资产读进常驻缓存，战斗/房间切换路径只读缓存、不再读盘。
             LingdawnpaoVisuals.Warmup();
+            LingdawnpaoMerchantVisuals.Warmup();
+            LingdawnpaoRestSiteVisuals.Warmup();
+            FrostExecutionVfx.Warmup();
 
             ModHelper.AddModelToPool<LingdawnpaoCardPool, SneakAttack>();
             ModHelper.AddModelToPool<LingdawnpaoCardPool, HuntOperation>();

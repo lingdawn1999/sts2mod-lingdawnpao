@@ -46,7 +46,7 @@ namespace lingdawnpao.Core
 
         protected override IEnumerable<DynamicVar> CanonicalVars =>
         [
-            new BlockVar(20m, ValueProp.Move),
+            new BlockVar(22m, ValueProp.Move), // 2026-10-28 用户调优：20 → 22（残留层数滚大后自伤变高，20 档后期净防劣质）
             new PowerVar<FrostbitePower>(4m),
         ];
 
@@ -66,7 +66,7 @@ namespace lingdawnpao.Core
 
         protected override void OnUpgrade()
         {
-            DynamicVars.Block.UpgradeValueBy(5m);   // 20 → 25
+            DynamicVars.Block.UpgradeValueBy(5m);   // 22 → 27
         }
     }
 }

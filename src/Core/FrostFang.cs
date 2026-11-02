@@ -1,5 +1,8 @@
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Godot;
+using MegaCrit.Sts2.Core.CardSelection;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Context;
@@ -78,33 +81,30 @@ namespace lingdawnpao.Core
                 // 手牌里那张姿态牌本身也要换卡名 / 描述 / 卡图（它是当前形态的说明书，见 AmbushStance）
                 AmbushStance.RefreshFormCardVisuals(owner);
 
-                // 整手牌也刷一遍：费用类状态（「永恒狩猎」的免费埋牌窗口、「有备而来」按区域张数的折扣）
-                // 只在卡面刷新时才重算，切形态不刷的话玩家看到的还是旧费用（2026-09-25 用户报障）
-                AmbushStance.RefreshHandVisuals(owner);
+                // 整手费用由 ToggleAmbushAction 在遗物视觉回调之前统一刷新。
             }
         }
 
         public override async Task BeforeCombatStart()
         {
             Player? owner = Owner;
+            if (owner != null) PendingBuryVisual.Clear(owner);
             AmbushZoneState? zone = owner == null ? null : AmbushZone.For(owner);
-            // **进战斗的兜底重置**：冷却/过载是"本回合"级别的状态，正常由 ReturnBuriedCardsAsync
+            // **进战斗的兜底重置**：冷却是回合级别的状态，正常由 ReturnBuriedCardsAsync
             // （AfterCombatEnd）清零。但战斗结束流程并不保证一定跑到那里——本体结算中途抛异常
             // （2026-09-23 那个 epoch 崩溃就会打断 EndCombatInternal）、玩家放弃对局等都会漏掉。
-            // 一旦漏掉，IsCoolingDown 会带着 true 进入下一场战斗，而负责解除它的 ConcentrationPower /
-            // OverloadPower 都是**能力**（战斗结束即被清掉）→ 没人能解开 → 整场都不能埋牌，
+            // 一旦漏掉，普通冷却会带入下一场战斗，但负责恢复的状态已经被清掉，导致整场不能埋牌，
             // 而且界面上看不出任何冷却。用户 2026-09-23 报障"伏击区没进冷却但不能埋牌"优先怀疑这里。
             if (zone != null)
             {
-                if (zone.IsCoolingDown || zone.IsOverloaded)
+                if (zone.IsCoolingDown)
                 {
-                    Log.Info($"伏击者：进战斗时发现残留状态（冷却={zone.IsCoolingDown}，过载={zone.IsOverloaded}），已清除");
+                    Log.Info("伏击者：进战斗时发现残留冷却，已清除");
                     zone.IsCoolingDown = false;
-                    zone.IsOverloaded = false;
                 }
 
                 // 「十面埋伏」的伤害成长按"本场战斗"计，进战斗必须归零（重复进战斗时同理）
-                zone.AmbushDamageCount = 0;
+                zone.Effects.Clear();
                 zone.PowerCapacityUsedThisTurn = false;
             }
 
@@ -151,6 +151,66 @@ namespace lingdawnpao.Core
             AmbushZone.For(player).PowerCapacityUsedThisTurn = false;
 
             await AmbushStance.EnsureInHandAsync(player);
+            LingdawnpaoAnimationController.SyncMode(player);
+        }
+
+        /// <summary>
+        /// 首回合启动存货（2026-10-28 用户定稿）：**每场战斗的第一回合开始时**，可自选 1 张手牌
+        /// **免费**加入[gold]伏击区域[/gold]（可选、能跳过）——治"开局真空期"：
+        /// 区域空 1~2 回合是伏击流最弱的窗口，这个保底让第一回合末就有存货可带出。
+        /// <para>
+        /// 钩子与「暗杀者」同源（AfterPlayerTurnStart：摸牌之后，能看到刚摸的牌）。
+        /// **暗杀者不叠加本效果**：它 override 了本钩子做"每回合自选"，第一回合已被覆盖
+        /// （C# 虚方法覆盖后本实现不会跑，天然不重复弹窗）。
+        /// </para>
+        /// </summary>
+        public override async Task AfterPlayerTurnStart(PlayerChoiceContext choiceContext, Player player)
+        {
+            if (player != Owner || player.PlayerCombatState == null || this is Assassin)
+            {
+                return;
+            }
+
+            if (player.PlayerCombatState.TurnNumber != 1)
+            {
+                return;
+            }
+
+            AmbushZoneState zone = AmbushZone.For(player);
+            if (zone.IsCoolingDown || zone.IsFull || PileType.Hand.GetPile(player).Cards.Count == 0)
+            {
+                return;
+            }
+
+            List<CardModel> picked = (await CardSelectCmd.FromHand(
+                choiceContext,
+                player,
+                new CardSelectorPrefs(SelectionScreenPrompt, 0, 1),
+                CanBuryForFree,
+                this)).ToList();
+            if (picked.Count == 0 || picked[0].Pile?.Type != PileType.Hand)
+            {
+                return;
+            }
+
+            Flash();
+            Log.Info($"伏击者：首回合自选埋牌 {picked[0].Id.Entry}（玩家 {player.NetId}）");
+            await AmbushZone.BuryAsync(choiceContext, picked[0], player, spendResources: false);
+        }
+
+        /// <summary>
+        /// 免费埋牌的可选范围：与手动埋牌保持一致（BuryCardAction 要求 CanPlay），
+        /// 但因为是免费埋入，"只因能量/辉星不足而打不出"的牌也允许选（暗杀者共用）。
+        /// </summary>
+        internal static bool CanBuryForFree(CardModel card)
+        {
+            if (card.CanPlay(out UnplayableReason reason, out AbstractModel? _))
+            {
+                return true;
+            }
+
+            return reason.HasFlag(UnplayableReason.EnergyCostTooHigh)
+                || reason.HasFlag(UnplayableReason.StarCostTooHigh);
         }
 
         // 能力牌埋入收益改为"埋入瞬间给下回合摸牌"（见 AmbushZone.BuryAsync），
@@ -162,10 +222,12 @@ namespace lingdawnpao.Core
         //
         // 【一】自己就要操作伏击区的牌，遗物别插手：
         // ①「猛虎连击」在自己的 OnPlay 里逐张带出驱动连击，遗物不能再补带一张；
-        // ②「重整计划」「雪灾」自己要烧清/清算伏击区换资源——遗物若在它们 OnPlay 之后带出一张，
-        //    就把"烧清"变成"烧 N-1 张 + 带出 1 张"，与卡牌意图相悖
+        // ②「重整计划」「雪灾」自己要清算伏击区换资源——遗物若在它们 OnPlay 之后带出一张，
+        //    就把"清空"变成"清 N-1 张 + 带出 1 张"，与卡牌意图相悖
         //    （2026-09-23 用户报障："先带出一张再开始烧"）。雪灾还多一层：它先清空、再用「晕眩」填满，
         //    遗物立刻带出一张晕眩（不可打出，直接进弃牌堆）会让"填满"变成只填 2 张。
+        //    「重整计划」2026-10-24 起改为**自己带出打出全区域**（每张改消耗 + 回资源），
+        //    它自己就是带出器，遗物若再补带一张等于白送一次带出，豁免理由更成立。
         //
         // 【二】**生成件**——打出时往区域里塞新牌，顺序必须是"先带出旧牌、再生成"：
         // ③「设伏」「捕猎」「永恒呼吸」「扑击」「珍藏」「雪球技巧」。遗物挂在出牌**之后**，那时新牌已经躺在区域里，
@@ -176,7 +238,9 @@ namespace lingdawnpao.Core
         //    「珍藏」是 2026-09-24 加进来的成员：它检索到带[gold]埋伏[/gold]词条的牌会**直接埋入区域**，
         //    遗物不豁免的话"刚塞进去的一张就被立刻带出来"，直接入区的意义当场作废。
         //    「雪球技巧」同日加进来：它会当场用「雪球」填满区域，同样必须豁免 + 卡内自带出旧牌。
-        //    「冰镜」2026-09-28 加进来：手牌复制改为直接埋入区域（照「珍藏」的不扣费路径），同规矩豁免 + 卡内自带出旧牌。
+        //    「冰镜」只复制区域牌到手牌，原牌与区域顺序保持不变，不额外带出。
+        //    「重整计划」定向带出并补入手牌；「凝神」批量放入手牌，两者均不额外触发 FIFO。
+        //    「厚绒」手动打出时先结算旧牌带出，再将自己加入区域，避免空区时把自己立刻带出。
         //    （「雪拥」曾短暂进过这张名单，随它回退成纯通用格挡件而一并移除——别再加回来。）
         public override async Task AfterCardPlayed(PlayerChoiceContext choiceContext, CardPlay cardPlay)
         {
@@ -210,8 +274,7 @@ namespace lingdawnpao.Core
             }
 
             // ── 以下为"非伏击形态带出"逻辑，豁免名单与口径见下方原注释 ──
-            if (cardPlay.Card is TigerCombo or SetAmbush or Hunt or EternalBreath or BodyPounce or SnowCalamity or Regroup or Trove or SnowballTechnique
-                or Stockpile or SnowfieldDash or SnowSift or IceMirror)
+            if (HandlesOwnBringOut(cardPlay.Card))
             {
                 return;
             }
@@ -232,39 +295,10 @@ namespace lingdawnpao.Core
             await AmbushZone.BringOutFirstAsync(choiceContext, cardPlay.Target, owner);
         }
 
-        /// <summary>
-        /// 「十面埋伏」的成长记账：**本场战斗中，你的伏击牌每造成一次伤害，计数 +1**
-        /// （记在 <see cref="AmbushZoneState.AmbushDamageCount" /> 上，卡打出时按它换算伤害）。
-        /// <para>
-        /// **口径**（对应 2026-09-24 用户定的"本场战斗你每因伏击造成过一次伤害"）：
-        /// ① 出伤者必须是本人（`dealer` 过滤，否则队友的伏击牌会给你的计数灌水）；
-        /// ② 伤害必须来自**从伏击区域带出打出的牌**（<see cref="AmbushZone.IsAmbushPlay" />）；
-        /// ③ 必须是**攻击伤害**（`IsPoweredAttack`）且 `TotalDamage > 0`——漏掉这条的话，
-        ///    带出牌的挂冰伤害、其它能力的衍生伤害都会重复计数；
-        /// ④ 一次伤害结算记一次，所以多段攻击 / 一次带出多张会明显加速成长，这正是这张金卡的正反馈来源。
-        /// </para>
-        /// <para>
-        /// ⚠️ 纯记账钩子，**不产生任何战斗动作**，且各客户端在同步的动作序列里跑同一份逻辑，
-        /// 计数天然一致（所以卡面用动态伤害显示也不会两端分叉）。改口径时务必保持"只依赖已同步的信息"。
-        /// </para>
-        /// </summary>
-        public override Task AfterDamageGiven(PlayerChoiceContext choiceContext, Creature? dealer, DamageResult result,
-            ValueProp props, Creature target, CardModel? cardSource)
-        {
-            Player? owner = Owner;
-            if (owner == null
-                || dealer != owner.Creature
-                || cardSource == null
-                || !AmbushZone.IsAmbushPlay(cardSource)
-                || !props.IsPoweredAttack()
-                || result.TotalDamage <= 0)
-            {
-                return Task.CompletedTask;
-            }
-
-            AmbushZone.For(owner).AmbushDamageCount++;
-            return Task.CompletedTask;
-        }
+        internal static bool HandlesOwnBringOut(CardModel card) => card is
+            TigerCombo or SetAmbush or Hunt or EternalBreath or BodyPounce or SnowCalamity or Regroup or Trove
+            or SnowballTechnique or Stockpile or SnowfieldDash or SnowSift or IceMirror or Concentration or ThickCoat
+            or LingdawnpaoInitiative or CloseTheNet;
 
         // 战斗结束：未带出的埋牌归入弃牌堆，区域清空；伏击形态保持玩家手动切换的状态
         public override async Task AfterCombatEnd(CombatRoom room)
@@ -275,9 +309,10 @@ namespace lingdawnpao.Core
                 return;
             }
 
+            PendingBuryVisual.Clear(owner);
             AmbushZoneState zone = AmbushZone.For(owner);
             Status = zone.IsAmbushMode ? RelicStatus.Active : RelicStatus.Normal;
-            zone.AmbushDamageCount = 0;   // 「十面埋伏」的成长是"本场战斗"口径，战后清账
+            zone.Effects.Clear();   // 「十面埋伏」的成长是"本场战斗"口径，战后清账
             await AmbushZone.ReturnBuriedCardsAsync(owner);
             Log.Info($"伏击者：战斗结束，区域已清空（伏击形态仍为 {zone.IsAmbushMode}）");
         }

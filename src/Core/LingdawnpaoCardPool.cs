@@ -117,6 +117,8 @@ namespace lingdawnpao.Core
                 ModelDb.Card<Devour>(),
                 ModelDb.Card<AnimalFriends>(),
                 ModelDb.Card<Stockpile>(),
+                ModelDb.Card<LingdawnpaoInitiative>(),
+                ModelDb.Card<SnowSweep>(),
                 ModelDb.Card<Snowdrift>(),
                 ModelDb.Card<AnimalFamily>(),
                 ModelDb.Card<SwarmAmbush>(),

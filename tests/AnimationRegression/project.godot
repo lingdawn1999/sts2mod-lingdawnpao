@@ -1,0 +1,11 @@
+config_version=5
+[application]
+config/name="Snow leopard animation regression"
+run/main_scene="res://Runner.tscn"
+[dotnet]
+project/assembly_name="AnimationRegression"
+[display]
+window/size/viewport_width=960
+window/size/viewport_height=640
+[rendering]
+renderer/rendering_method="gl_compatibility"

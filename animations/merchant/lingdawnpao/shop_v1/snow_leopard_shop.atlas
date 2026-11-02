@@ -1,0 +1,20 @@
+
+snow_leopard_shop.png
+size: 1929,1855
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+fallen-leopard
+  rotate: false
+  xy: 4, 1032
+  size: 1921, 819
+  orig: 1921, 819
+  offset: 0, 0
+  index: -1
+shop-leopard
+  rotate: false
+  xy: 4, 4
+  size: 1536, 1024
+  orig: 1536, 1024
+  offset: 0, 0
+  index: -1

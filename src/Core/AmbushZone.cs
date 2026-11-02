@@ -82,15 +82,17 @@ namespace lingdawnpao.Core
 
         public int AppliedDex { get; set; }
 
-        /// <summary>
-        /// 过载（"过载"卡提供）：本回合伏击区内的牌**视为所有类型**，
-        /// 即每张牌同时计入攻击牌与技能牌（同时提供力量与敏捷）。
-        /// 由 OverloadPower 的回合钩子管理状态机：过载 → 下回合冷却 → 再下回合恢复。
-        /// </summary>
-        public bool IsOverloaded { get; set; }
+        private bool _isCoolingDown;
+        /// <summary>普通失效、过载衰竭与神速回合独立记账，单一效果结束不会解除其他失效来源。</summary>
+        public bool IsCoolingDown
+        {
+            get => _isCoolingDown || Player.Creature.HasPower<AmbushExhaustionPower>()
+                || Player.Creature.GetPower<DevourPower>()?.IsExtraTurnActive == true;
+            set => _isCoolingDown = value;
+        }
 
-        /// <summary>冷却（过载的代价）：整个伏击区失效一回合——不提供增益、不能埋牌、不能带出。</summary>
-        public bool IsCoolingDown { get; set; }
+        /// <summary>区域失效时停用区域提供的属性增益。</summary>
+        public bool AreBonusesSuppressed => IsCoolingDown;
 
         /// <summary>
         /// 本回合是否已触发过「**每回合首次使用能力牌 → 上限+1**」（2026-09-27 新规则）。
@@ -99,12 +101,8 @@ namespace lingdawnpao.Core
         /// </summary>
         public bool PowerCapacityUsedThisTurn { get; set; }
 
-        /// <summary>
-        /// **本场战斗中，你的伏击牌造成过伤害的次数**（「十面埋伏」的伤害成长依据）。
-        /// 由 <see cref="FrostFang" /> 在 <c>AfterDamageGiven</c> 里累加、进战斗时归零。
-        /// 计的是**伤害结算次数**（多段攻击 = 多次），口径与旧「十面埋伏」能力的触发口径一致。
-        /// </summary>
-        public int AmbushDamageCount { get; set; }
+        /// <summary>本场战斗真正触发过的不同名埋伏效果，按首次触发顺序保存。</summary>
+        public AmbushEffectLedger Effects { get; } = new();
 
         /// <summary>
         /// 每张埋牌**埋入时的回合号**（`PlayerCombatState.TurnNumber`）。
@@ -274,7 +272,7 @@ namespace lingdawnpao.Core
 
         /// <summary>
         /// **「埋伏」收益的唯一判定**（2026-09-23 埋伏体系大改）：这张牌不但是被带出打出的，
-        /// 而且**在伏击区域停留过至少一个回合**。
+        /// 而且**在伏击区域停留过至少一个回合**，或本次带出明确免除等待（如重整计划）。
         /// <para>
         /// **为什么要有这一层**：改前所有埋伏卡都只看 <see cref="IsAmbushPlay" />，而右键切换形态是
         /// **完全免费、无冷却、一回合内可反复切**的，带出打出本身也不再付费（埋时已付）——
@@ -354,11 +352,23 @@ namespace lingdawnpao.Core
             1 + (player.Creature.GetPower<AmbushEchoPower>()?.ExtraTriggers ?? 0);
 
         /// <summary>
-        /// 本场战斗中该玩家的伏击牌造成过伤害的次数（「十面埋伏」的动态伤害用）。
-        /// 只读查询：不建条目，所以**战斗外（牌组/收藏界面预览卡面）也安全**，返回 0。
+        /// 把刚埋入的牌**立即标记为"已潜伏满一回合"**（埋入回合记账改成上一回合，
+        /// <see cref="IsReady"/> 的判定自然通过）。「抢占先机」的"立即解锁伏击效果"用：
+        /// 一次性救急资源（0 费 + 消耗 + 卡没了），与当年防白嫖改掉的"免费切形态反复埋-带"不是一回事。
+        /// ⚠️ 必须在 <see cref="BuryAsync"/> 之后调用（埋入记账会被覆盖）。
         /// </summary>
-        public static int AmbushDamageCount(Player player) =>
-            Zones.TryGetValue(player.NetId, out AmbushZoneState? zone) ? zone.AmbushDamageCount : 0;
+        public static void MarkReadyImmediately(Player player, CardModel card)
+        {
+            if (player.PlayerCombatState == null)
+            {
+                return;
+            }
+
+            For(player).BuriedTurn[card] = player.PlayerCombatState.TurnNumber - 1;
+        }
+
+        internal static bool CanContinueCombat(Player player) => player.PlayerCombatState != null
+            && player.Creature.IsAlive && (TestMode.IsOn || !CombatManager.Instance.IsOverOrEnding);
 
         /// <summary>
         /// 埋牌：把牌从手牌移进伏击区域、给区域层数与攻/防加成。
@@ -368,7 +378,7 @@ namespace lingdawnpao.Core
         public static async Task BuryAsync(PlayerChoiceContext choiceContext, CardModel card, Player player, bool spendResources = true)
         {
             AmbushZoneState zone = For(player);
-            if (zone.IsFull || zone.IsCoolingDown || player.PlayerCombatState == null)
+            if (!CanContinueCombat(player) || zone.IsFull || zone.IsCoolingDown)
             {
                 return;
             }
@@ -388,7 +398,12 @@ namespace lingdawnpao.Core
                         await throne.SettleBuriedCostAsync(choiceContext, card);
                     }
                 }
+                // Hand burial has already paid its discounted cost, but never runs BeforeCardPlayed.
+                // Consume here while the card is still in hand; generated/free effect burials skip this branch.
+                if (player.Creature.GetPower<ChainClawDiscountPower>() is { } discount)
+                    await discount.ConsumeForManualUseAsync(card);
             }
+            if (!CanContinueCombat(player)) return;
             AmbushZoneUi.Prepare();
             // **手工完成本体出牌的节点交接**（"卡牌卡在屏幕中间"bug 的根治，2026-09-28）：
             // 本体把卡面从手牌 holder 摘出、挂进出牌容器并释放 holder，发生在 PlayCardAction
@@ -413,46 +428,8 @@ namespace lingdawnpao.Core
             // 官方"手动出牌"流程负责把手牌 holder 正确释放（直接 RemoveFromCurrentPile 会让卡面残留），
             // 但它会把牌塞进出牌堆并启动一个飞向屏幕中心的 tween。
             await CardPileCmd.AddDuringManualCardPlay(card);
-            // 必须在 RemoveFromCurrentPile 之前找节点：CardModel.Pile 是"在 owner.Piles 里找包含自己的堆"
-            // 的计算属性，移出后 card.Pile 为 null，FindOnTable 直接返回 null，视觉就永远不执行。
-            NCard? node = NCard.FindOnTable(card, PileType.Play);
+            AnimateBurialFromPlay(card, player);
             card.RemoveFromCurrentPile();
-            NCombatUi? ui = NCombatRoom.Instance?.Ui;
-            if (node != null && ui != null)
-            {
-                node.PlayPileTween?.Kill();
-                node.PlayPileTween = null;
-                // 节点现在挂在 PlayContainer 里（AddDuringManualCardPlay 把它搬进去了），
-                // 我们要让它飞出容器去飞伏击堆按钮 → 先移出容器挂到 Ui 根上，保持当前世界坐标不变。
-                Vector2 worldPos = node.GlobalPosition;
-                Control parent = node.GetParent<Control>();
-                parent?.RemoveChildSafely(node);
-                ui.AddChildSafely(node);
-                node.GlobalPosition = worldPos;
-
-                NCreature? creatureNode = NCombatRoom.Instance?.GetCreatureNode(player.Creature);
-                Vector2 destination = AmbushZoneUi.GetCenter() ?? creatureNode?.GlobalPosition ?? node.GlobalPosition;
-                Tween tween = node.CreateTween().SetParallel();
-                tween.TweenProperty(node, "global_position", destination, 0.3f)
-                    .SetEase(Tween.EaseType.In).SetTrans(Tween.TransitionType.Cubic);
-                tween.TweenProperty(node, "scale", Vector2.One * 0.4f, 0.3f)
-                    .SetEase(Tween.EaseType.In).SetTrans(Tween.TransitionType.Cubic);
-                tween.TweenProperty(node, "modulate", StsColors.transparentBlack, 0.3f);
-                tween.Chain().TweenCallback(Callable.From(() =>
-                {
-                    if (GodotObject.IsInstanceValid(node))
-                    {
-                        ui.AddChildSafely(ExhaustVfxCompat.CreateVfx(node));
-                        node.QueueFreeSafely();
-                    }
-                }));
-                tween.Play();
-                // 不 await：让动画 fire-and-forget，避免阻塞动作队列 0.3s
-            }
-            else if (node == null)
-            {
-                Log.Info("伏击区域：未找到埋牌卡面节点，跳过飞入动画");
-            }
 
             zone.Pile.AddInternal(card);
             MarkBuried(zone, card);
@@ -474,8 +451,69 @@ namespace lingdawnpao.Core
             await KillerInstinctPower.NotifyBuriedAsync(choiceContext, player);
             // 小零食（遗物）：本场战斗首次埋牌 → 抽 1 张牌
             await CatSnack.NotifyBuriedAsync(choiceContext, player);
-            // 暗夜收割已改为"每回合开始看区域是否非空"（见 NightPatrolPower），埋入不再结算
+            // 暗夜收割只在带出结算完成后触发，置入本身不提供成长。
+            // Grant last: block hooks may end combat, so no regional commands should follow.
+            if (spendResources && player.GetRelic<LingdawnpaoSurvival>() is { } survival)
+                await survival.AfterManualBuryAsync(choiceContext, player);
             AmbushZoneUi.Refresh();
+        }
+
+        /// <summary>Move a resolved card into the zone without restarting manual play or spending resources.</summary>
+        internal static async Task<bool> BuryPlayedCardAsync(PlayerChoiceContext choiceContext, Player player, CardModel card)
+        {
+            AmbushZoneState zone = For(player);
+            if (card.Owner != player || card.Pile?.Type != PileType.Play
+                || !CanContinueCombat(player) || zone.IsFull || zone.IsCoolingDown) return false;
+
+            AnimateBurialFromPlay(card, player);
+            card.RemoveFromCurrentPile();
+            return await BuryGeneratedAsync(choiceContext, player, card, "打出后入区");
+        }
+
+        private static void AnimateBurialFromPlay(CardModel card, Player player)
+        {
+            if (TestMode.IsOn) return;
+            // 必须在 RemoveFromCurrentPile 之前找节点：CardModel.Pile 是"在 owner.Piles 里找包含自己的堆"
+            // 的计算属性，移出后 card.Pile 为 null，FindOnTable 直接返回 null，视觉就永远不执行。
+            NCard? node = NCard.FindOnTable(card, PileType.Play);
+            NCombatUi? ui = NCombatRoom.Instance?.Ui;
+            if (node != null && ui != null)
+            {
+                node.PlayPileTween?.Kill();
+                node.PlayPileTween = null;
+                // 节点现在挂在 PlayContainer 里（AddDuringManualCardPlay 把它搬进去了），
+                // 我们要让它飞出容器去飞伏击堆按钮 → 先移出容器挂到 Ui 根上，保持当前世界坐标不变。
+                Vector2 worldPos = node.GlobalPosition;
+                Control parent = node.GetParent<Control>();
+                parent?.RemoveChildSafely(node);
+                ui.AddChildSafely(node);
+                node.GlobalPosition = worldPos;
+
+                NCreature? creatureNode = NCombatRoom.Instance?.GetCreatureNode(player.Creature);
+                Vector2 destination = AmbushZoneUi.GetCenter() ?? creatureNode?.GlobalPosition ?? node.GlobalPosition;
+                Tween tween = node.CreateTween().SetParallel();
+                int animationEpoch = AmbushCardVisuals.TrackAnimation(node, tween);
+                tween.TweenProperty(node, "global_position", destination, 0.3f)
+                    .SetEase(Tween.EaseType.In).SetTrans(Tween.TransitionType.Cubic);
+                tween.TweenProperty(node, "scale", Vector2.One * 0.4f, 0.3f)
+                    .SetEase(Tween.EaseType.In).SetTrans(Tween.TransitionType.Cubic);
+                tween.TweenProperty(node, "modulate", StsColors.transparentBlack, 0.3f);
+                tween.Chain().TweenCallback(Callable.From(() =>
+                {
+                    if (AmbushCardVisuals.CanComplete(node, card, animationEpoch))
+                    {
+                        ui.AddChildSafely(ExhaustVfxCompat.CreateVfx(node));
+                        node.QueueFreeSafely();
+                    }
+                }));
+                tween.Play();
+                // 不 await：让动画 fire-and-forget，避免阻塞动作队列 0.3s
+            }
+            else if (node == null)
+            {
+                Log.Info("伏击区域：未找到埋牌卡面节点，跳过飞入动画");
+            }
+
         }
 
         /// <summary>
@@ -486,7 +524,7 @@ namespace lingdawnpao.Core
         public static async Task<bool> BuryGeneratedAsync(PlayerChoiceContext choiceContext, Player player, CardModel card, string source = "生成牌")
         {
             AmbushZoneState zone = For(player);
-            if (zone.IsFull || zone.IsCoolingDown)
+            if (!CanContinueCombat(player) || zone.IsFull || zone.IsCoolingDown)
             {
                 return false;
             }
@@ -501,7 +539,7 @@ namespace lingdawnpao.Core
             await KillerInstinctPower.NotifyBuriedAsync(choiceContext, player);
             // 小零食（遗物）：本场战斗首次埋牌 → 抽 1 张牌
             await CatSnack.NotifyBuriedAsync(choiceContext, player);
-            // 暗夜收割已改为"每回合开始看区域是否非空"（见 NightPatrolPower），埋入不再结算
+            // 暗夜收割只在带出结算完成后触发，置入本身不提供成长。
             AmbushZoneUi.Refresh();
             return true;
         }
@@ -518,7 +556,7 @@ namespace lingdawnpao.Core
         public static async Task<bool> BuryTopOfDrawPileAsync(PlayerChoiceContext choiceContext, Player player)
         {
             AmbushZoneState zone = For(player);
-            if (zone.IsFull || zone.IsCoolingDown)
+            if (!CanContinueCombat(player) || zone.IsFull || zone.IsCoolingDown)
             {
                 return false;
             }
@@ -544,7 +582,7 @@ namespace lingdawnpao.Core
         public static async Task<bool> BuryFromDiscardAsync(PlayerChoiceContext choiceContext, Player player, CardModel card)
         {
             AmbushZoneState zone = For(player);
-            if (zone.IsFull || zone.IsCoolingDown)
+            if (!CanContinueCombat(player) || zone.IsFull || zone.IsCoolingDown)
             {
                 return false;
             }
@@ -592,9 +630,18 @@ namespace lingdawnpao.Core
                 return null;
             }
 
-            CardModel card = zone.Pile.Cards[0];
+            return await BringOutChosenAsync(choiceContext, target, player, zone.Pile.Cards[0]);
+        }
+
+        /// <summary>按指定牌带出，不改变其他牌的顺序；重整计划可免除本次带出的埋伏等待。</summary>
+        public static async Task<CardModel?> BringOutChosenAsync(PlayerChoiceContext choiceContext, Creature? target,
+            Player player, CardModel card, bool ignoreAmbushDelay = false)
+        {
+            AmbushZoneState zone = For(player);
+            if (!CanContinueCombat(player) || zone.IsCoolingDown || !zone.Pile.Cards.Contains(card)) return null;
             // 「埋伏」收益的资格必须**在移出区域之前**读出来（`IsReady` 依赖埋入回合记账）
-            bool veteran = IsReady(zone, card);
+            // 只改变本次出牌的资格，不修改埋入回合，也不另行重复结算埋伏效果。
+            bool veteran = ignoreAmbushDelay || IsReady(zone, card);
             zone.Pile.RemoveInternal(card);
             zone.BuriedTurn.Remove(card);
             // 「追猎」：场上有被追猎的敌人时，带出的牌一律改打它（否则跟随本回合打出那张牌的目标）
@@ -607,7 +654,7 @@ namespace lingdawnpao.Core
                 target = enemies is { Count: > 0 } ? player.RunState.Rng.CombatTargets.NextItem(enemies) : null;
             }
             Log.Info($"伏击区域：玩家 {player.NetId} 带出 {card.Id.Entry}（剩余 {zone.Count}，"
-                + (veteran ? "已潜伏满一回合 → 吃埋伏收益" : "本回合才埋 → 只走基础效果") + "）");
+                + (veteran ? "埋伏已就绪 → 吃埋伏收益" : "本回合才埋 → 只走基础效果") + "）");
             await NotifyCountChangedAsync(choiceContext, player, -1);
             Creature creature = player.Creature;
             AmbushZoneUi.Refresh();
@@ -616,6 +663,11 @@ namespace lingdawnpao.Core
             // 伏击本能（金卡能力）：本回合**首次**带出牌 → 抽等同层数的牌（每回合只结算一次，
             // 「倾泄」一次带出一串也只算第一张——防刷闸门，见 KillerInstinctPower）
             await KillerInstinctPower.NotifyBroughtOutAsync(choiceContext, player);
+
+            // AutoPlay's null-pile branch calls CardPileCmd.Add without forwarding
+            // skipCardPileVisuals (public and beta). Stage silently before creating our
+            // own visual so that branch cannot start a second, awaited pile animation.
+            await StageBroughtOutCardAsync(card);
 
             // 带出牌视觉完全自理：skipCardPileVisuals 让引擎全程不生成/不移动卡面
             // （否则本体会在出牌区中心凭空生成一张并停在那里整个结算期，就是用户嫌丑的"卡在中间"），
@@ -637,6 +689,7 @@ namespace lingdawnpao.Core
                         ? creatureNode.GlobalPosition + Vector2.Up * 150f
                         : from + Vector2.Left * 190f;
                     Tween flyIn = node.CreateTween();
+                    AmbushCardVisuals.TrackAnimation(node, flyIn);
                     flyIn.TweenProperty(node, "global_position", hover - node.Size * 0.5f, 0.3f)
                         .SetEase(Tween.EaseType.Out).SetTrans(Tween.TransitionType.Cubic);
                 }
@@ -657,6 +710,17 @@ namespace lingdawnpao.Core
             {
                 await CardCmd.AutoPlay(choiceContext, card, target, skipCardPileVisuals: true);
             }
+            catch
+            {
+                // A gameplay exception must still propagate, but its owned visual must
+                // not remain suspended on screen (or later act on a reused card node).
+                if (node != null && AmbushCardVisuals.CanAnimate(node, card))
+                {
+                    AmbushCardVisuals.CancelOwnedAnimation(node);
+                    node.QueueFreeSafely();
+                }
+                throw;
+            }
             finally
             {
                 PlayingFromAmbush.Remove(card);
@@ -669,8 +733,18 @@ namespace lingdawnpao.Core
                 // 同样补发牌堆计数事件（这张牌是跳过视觉进消耗堆的，本体不会替我们发）
                 await ExhaustCardWithoutVisualsAsync(choiceContext, card, player);
             }
+            else if (card.Pile?.Type is PileType.Discard or PileType.Exhaust)
+            {
+                // 2026-10-24 用户报障"伏击区牌被消耗进消耗堆，消耗堆不计数"的根因修复：
+                // 带出流程的牌全程无本体堆间动画（Stage 静默入 Play；AutoPlay 结算后牌的 oldPile
+                // 已被清空 → 本体 CardPileCmd.Add 判定"非堆间移动"整段静默，CardAddFinished 不发，
+                // 且 FindOnTable 对 Discard/Exhaust 恒返回 null 连节点都找不到）→ 弃牌堆/消耗堆
+                // 角标不涨。这里按牌的**最终归宿**补发计数事件。
+                // 「连扑」不走这里：ExhaustCardWithoutVisualsAsync 内部已补发消耗堆计数。
+                card.Pile.Type.GetPile(player).InvokeCardAddFinished();
+            }
 
-            if (node != null && GodotObject.IsInstanceValid(node))
+            if (node != null && AmbushCardVisuals.CanAnimate(node, card))
             {
                 if (NCombatRoom.Instance != null)
                 {
@@ -685,11 +759,15 @@ namespace lingdawnpao.Core
                         ? pileButton.GlobalPosition + pileButton.Size * 0.5f
                         : node.GlobalPosition;
                     Tween putAway = node.CreateTween().SetParallel();
+                    int returnEpoch = AmbushCardVisuals.TrackAnimation(node, putAway);
                     putAway.TweenProperty(node, "global_position", to, 0.3f)
                         .SetEase(Tween.EaseType.In).SetTrans(Tween.TransitionType.Cubic);
                     putAway.TweenProperty(node, "scale", Vector2.One * 0.5f, 0.3f)
                         .SetEase(Tween.EaseType.In).SetTrans(Tween.TransitionType.Cubic);
-                    putAway.Chain().TweenCallback(Callable.From(node.QueueFreeSafely));
+                    putAway.Chain().TweenCallback(Callable.From(() =>
+                    {
+                        if (AmbushCardVisuals.CanComplete(node, card, returnEpoch)) node.QueueFreeSafely();
+                    }));
                 }
                 else
                 {
@@ -700,6 +778,7 @@ namespace lingdawnpao.Core
             // 带出的牌结算完毕后，才按区域现内容重算加成（此时该牌已移出，
             // 重算会收回它的力量/敏捷份额），保证带出的牌结算时仍享受加成。
             await RecomputeBonusesAsync(choiceContext, player);
+            await NightPatrolPower.NotifyBroughtOutAsync(choiceContext, player);
             return card;
         }
 
@@ -726,28 +805,43 @@ namespace lingdawnpao.Core
             CountZoneTypes(zone, out int attacks, out int skills);
 
             int perCard = 1 + zone.BonusExtra;
-            // 冷却中（过载的代价 / 凝神）：伏击区不提供任何力/敏增益
-            int wantStr = zone.IsCoolingDown ? 0 : attacks * perCard;
-            int wantDex = zone.IsCoolingDown ? 0 : skills * perCard;
+            // 整区失效只移除区域贡献，不影响其他来源的力/敏。
+            int wantStr = zone.AreBonusesSuppressed ? 0 : attacks * perCard;
+            int wantDex = zone.AreBonusesSuppressed ? 0 : skills * perCard;
             Creature creature = player.Creature;
             if (wantStr != zone.AppliedStr)
             {
-                await PowerCmd.Apply<StrengthPower>(choiceContext, creature, wantStr - zone.AppliedStr, creature, null);
+                await AdjustRegionalStatAsync<StrengthPower>(choiceContext, creature, wantStr - zone.AppliedStr);
                 zone.AppliedStr = wantStr;
             }
 
             if (wantDex != zone.AppliedDex)
             {
-                await PowerCmd.Apply<DexterityPower>(choiceContext, creature, wantDex - zone.AppliedDex, creature, null);
+                await AdjustRegionalStatAsync<DexterityPower>(choiceContext, creature, wantDex - zone.AppliedDex);
                 zone.AppliedDex = wantDex;
             }
 
-            // 「有备而来」「磨爪」的费用随伏击状态变化，区域每次变化都同步一次（升降都支持）
+            // 区域相关折扣与十面埋伏的收集涨费都要同步，包含仍埋在区域中的十面埋伏。
             SyncCardCosts(player);
         }
 
+        // Removing a region contribution is internal bookkeeping, not an enemy debuff.
+        // SetAmount still notifies the engine/UI, but Artifact cannot block the reversal.
+        private static async Task AdjustRegionalStatAsync<T>(PlayerChoiceContext context, Creature creature, int delta)
+            where T : PowerModel
+        {
+            if (delta >= 0)
+            {
+                await PowerCmd.Apply<T>(context, creature, delta, creature, null);
+                return;
+            }
+            if (creature.GetPower<T>() is not { } power) return;
+            power.SetAmount(power.Amount + delta);
+            if (power.ShouldRemoveDueToAmount()) await PowerCmd.Remove(power);
+        }
+
         /// <summary>
-        /// 按区域当前内容数出**攻击牌 / 技能牌**张数（过载时每张牌同时计入两类）。
+        /// 按区域当前内容数出**攻击牌 / 技能牌**张数。
         /// 两个用点：<see cref="RecomputeBonusesAsync" />（再乘「蓄势」的 `1 + BonusExtra` 换算力敏）与
         /// 「集群伏击」（按**基础 1 点/张**发临时增益给队友，**刻意不含蓄势加值**——用户 2026-09-25 澄清）。
         /// </summary>
@@ -757,14 +851,6 @@ namespace lingdawnpao.Core
             skills = 0;
             foreach (CardModel card in zone.Cards)
             {
-                // 过载：本回合区内牌视为所有类型（同时计入攻击与技能）
-                if (zone.IsOverloaded)
-                {
-                    attacks++;
-                    skills++;
-                    continue;
-                }
-
                 switch (card.Type)
                 {
                     case CardType.Attack:
@@ -785,6 +871,9 @@ namespace lingdawnpao.Core
         {
             ReadyForAnything.SyncCosts(player);
             HoldFast.SyncCosts(player);
+            AmbushBarrage.SyncCosts(player);
+            // Global cost hooks (free burial, loans, cooldown/fullness) have no local modifier event.
+            AmbushStance.RefreshHandVisuals(player);
         }
 
         /// <summary>
@@ -811,7 +900,7 @@ namespace lingdawnpao.Core
         }
 
         /// <summary>
-        /// 清空伏击区域，把里面的牌全部置入消耗牌堆（"重整计划""收网"用），返回被清掉的张数。
+        /// 清空伏击区域，把里面的牌全部置入消耗牌堆，返回被清掉的张数。
         /// 不触发任何埋伏效果、不走带出打出的流程——那是「倾泄」和带出路径的活。
         /// **本方法不重算增益**：调用方要在结算完自身效果后再调 <see cref="RefreshZoneAsync"/>，
         /// 与带出路径同理——让兑现的牌在结算期间仍享受区域提供的 +力量/+敏捷。
@@ -878,6 +967,7 @@ namespace lingdawnpao.Core
         /// <param name="prompt">选牌界面的提示语（由调用方给：卡牌传 <c>SelectionScreenPrompt</c>）。</param>
         public static async Task<CardModel?> SelectOneAsync(PlayerChoiceContext choiceContext, Player player, LocString prompt)
         {
+            if (!CanContinueCombat(player)) return null;
             List<CardModel> candidates = For(player).Cards.ToList();
             if (candidates.Count == 0)
             {
@@ -929,8 +1019,19 @@ namespace lingdawnpao.Core
         /// </summary>
         private static async Task ExhaustCardWithoutVisualsAsync(PlayerChoiceContext choiceContext, CardModel card, Player player)
         {
-            await CardCmd.Exhaust(choiceContext, card, causedByEthereal: false, skipVisuals: true);
+            await CardCmdCompat.Exhaust(choiceContext, card, causedByEthereal: false, skipVisuals: true);
             PileType.Exhaust.GetPile(player).InvokeCardAddFinished();
+        }
+
+        internal static Task StageBroughtOutCardAsync(CardModel card) =>
+            CardPileCmd.Add(card, PileType.Play, skipVisuals: true);
+
+        /// <summary>带出结算后的消耗沿用自管卡面，不再启动与退场动画冲突的本体消耗动画。</summary>
+        internal static async Task<bool> ExhaustAfterBringOutAsync(PlayerChoiceContext context, CardModel card, Player player)
+        {
+            if (card.Owner != player || card.Pile?.Type != PileType.Discard) return false;
+            await ExhaustCardWithoutVisualsAsync(context, card, player);
+            return true;
         }
 
         /// <summary>
@@ -1030,8 +1131,8 @@ namespace lingdawnpao.Core
                 await CardPileCmd.Add(card, PileType.Discard);
             }
 
+            zone.Effects.Clear();
             zone.BonusExtra = 0;
-            zone.IsOverloaded = false;
             zone.IsCoolingDown = false;
             zone.BuriedTurn.Clear();
             await RecomputeBonusesAsync(new ThrowingPlayerChoiceContext(), player);

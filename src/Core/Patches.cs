@@ -141,14 +141,7 @@ namespace lingdawnpao.Core
     [HarmonyPatch(typeof(NCard), nameof(NCard.OnReturnedFromPool))]
     internal static class NCard_OnReturnedFromPool_ForceResetPatch
     {
-        private static void Postfix(NCard __instance)
-        {
-            __instance.Modulate = Colors.White;
-            __instance.Visible = true;
-            __instance.Scale = Vector2.One;
-            __instance.Rotation = 0f;
-            __instance.Position = Vector2.Zero;
-        }
+        private static void Postfix(NCard __instance) => AmbushCardVisuals.RestoreForPool(__instance);
     }
 
     /// <summary>
@@ -844,56 +837,6 @@ namespace lingdawnpao.Core
     }
 
     /// <summary>
-    /// 「厚绒」打出后不进弃牌堆、而是随机洗回抽牌堆——2026-09-25 单 DLL 双分支适配。
-    /// <para>
-    /// 为什么不再用 override：本体那个"出牌去向"钩子在 public 是
-    /// `ModifyCardPlayResultPileTypeAndPosition(CardModel, bool, ResourceInfo, PileType, CardPilePosition)`
-    /// → 返回 `(PileType, CardPilePosition)`；在 public-beta 改名
-    /// `ModifyCardPlayResultLocation(CardModel, bool, ResourceInfo, CardLocation)` → 返回 `CardLocation`
-    /// （record struct）——**连名字和返回类型都不同**，一份 DLL 没法同时匹配 → 改成挂**下游落堆**这一步。
-    /// </para>
-    /// <para>
-    /// 位置选在这里的理由：`CardPileCmd.Add(CardModel, PileType, CardPilePosition, AbstractModel?, bool)`
-    /// 在两个分支**签名完全一致**，而且是本体 `OnPlayWrapper` 里把"算好的去向"真正落地的唯一一步
-    /// （public CardModel.cs:1621 / beta CardModel.cs:1631，两边都先判 `pile.Type == PileType.Play` 才落堆），
-    /// 所以在这里改写去向与原来挂在钩子上的效果等价。
-    /// </para>
-    /// <para>
-    /// 两道闸（照原 override 的口径）：
-    /// ① `newPileType == PileType.Discard` —— 只改写"原本要进弃牌堆"的那一次；[gold]消耗[/gold]（走
-    ///    `CardCmd.Exhaust`）、复制品（走 `RemoveFromCombat`）根本不会走到这个 `Add`，天然放行。
-    /// ② `card.Pile?.Type == PileType.Play` —— 把范围锁死在"刚打完、正在从 Play 堆出来"的这一次；
-    ///    **回合末手牌弃掉**（牌在 Hand 堆）之类的其它进弃牌堆路径一律不拦。
-    /// </para>
-    /// <para>
-    /// ⚠️ 已知的极窄差异：本体 `CardModel.MoveToResultPileWithoutPlaying`（自动打出的牌在"不可打出 / 没有合法目标"时的
-    /// 兜底落堆）也满足这两道闸 → 那种情况下本卡也会被洗回抽牌堆，而原钩子版本不会。
-    /// 本卡是 Self 目标的技能牌，那条分支实际走不到；留着这段注释是怕以后忘了这个差异。
-    /// </para>
-    /// </summary>
-    [HarmonyPatch]
-    internal static class CardPileCmd_Add_ThickCoatRecyclePatch
-    {
-        [HarmonyFinalizer]
-        private static System.Exception? Fin(System.Exception? __exception) =>
-            PatchSwallower.Swallow(__exception, nameof(CardPileCmd_Add_ThickCoatRecyclePatch));
-
-        private static MethodBase TargetMethod() => AccessTools.Method(typeof(CardPileCmd), "Add", new[]
-        {
-            typeof(CardModel), typeof(PileType), typeof(CardPilePosition), typeof(AbstractModel), typeof(bool),
-        });
-
-        private static void Prefix(CardModel card, ref PileType newPileType, ref CardPilePosition position)
-        {
-            if (card is ThickCoat && newPileType == PileType.Discard && card.Pile?.Type == PileType.Play)
-            {
-                newPileType = PileType.Draw;
-                position = CardPilePosition.Random;
-            }
-        }
-    }
-
-    /// <summary>
     /// 「暗杀者」的获取途径：本体先古遗物「欧洛巴斯之触」（奥罗巴斯 Orobas 的选项池）拾取时会把
     /// 初始遗物替换为先古版本。本体映射表是硬编码的 5 组（赤血→黑血、蛇之戒→龙之戒、神授之权→神授天命、
     /// 缚魂瓶→解缚魂瓶、裂核→注能核），查不到就退化成「圆环」Circlet。这里补上「伏击者 → 暗杀者」，
@@ -914,20 +857,18 @@ namespace lingdawnpao.Core
     }
 
     /// <summary>
-    /// 「决堤」的获取途径：本体先古遗物「古老牙齿」ArchaicTooth（奥罗巴斯事件选项）会把牌组里的
-    /// 初始牌转换成先古版本。本体映射表硬编码 5 组（痛击→破击、中和→镇压等），这里补上「倾泄 → 决堤」：
-    /// SetupForPlayer 因牌组含倾泄而可用（奥罗巴斯处选项自动出现），拾取后倾泄被替换为决堤，
-    /// 升级与附魔保留（GetTranscendenceTransformedCard 原样逻辑）。
+    /// 古老牙齿将偷袭转为奇袭（保留旧DamBreak内部ID），不再将倾泄转为决堤。
+    /// 升级与附魔沿用原版GetTranscendenceTransformedCard的保留逻辑。
     /// 尘封魔典 DustyTome 的 where 子句排除转换表先古卡（TranscendenceCards），所以雪豹的尘封魔典仍必给狩猎形态。
     /// 注：TranscendenceUpgrades 是 private static 属性、每次访问新建字典，Postfix 补一条所有调用方都吃得到。
-    /// （2026-09-21：原「偷袭 → 霜牙」映射已随霜牙 v4 回调取消，此机制改用于决堤。）
     /// </summary>
     [HarmonyPatch(typeof(ArchaicTooth), "TranscendenceUpgrades", MethodType.Getter)]
-    internal static class ArchaicTooth_TranscendenceUpgrades_DamBreakPatch
+    internal static class ArchaicTooth_TranscendenceUpgrades_SneakAttackPatch
     {
         private static void Postfix(ref Dictionary<ModelId, CardModel> __result)
         {
-            __result[ModelDb.Card<HuntOperation>().Id] = ModelDb.Card<DamBreak>();
+            __result.Remove(ModelDb.Card<HuntOperation>().Id);
+            __result[ModelDb.Card<SneakAttack>().Id] = ModelDb.Card<DamBreak>();
         }
     }
 }

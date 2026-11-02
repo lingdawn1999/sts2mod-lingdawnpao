@@ -7,7 +7,7 @@ using MegaCrit.Sts2.Core.Models.RelicPools;
 namespace lingdawnpao.Core
 {
     /// <summary>
-    /// 芝士雪豹遗物池：初始遗物「伏击者」+ 它的上位「暗杀者」+ 收官批三件专属
+    /// 芝士雪豹遗物池：开局的「伏击者」「自然的护佑」、上位「暗杀者」与专属遗物
     /// （暖绒·白 / 霜铃·蓝 / 雪球袋·金）。
     /// ⚠️ **所有遗物都必须登记在这里**，否则 `RelicModel.Pool` 会抛
     /// `InvalidOperationException: Sequence contains no matching element`
@@ -32,6 +32,7 @@ namespace lingdawnpao.Core
         protected override IEnumerable<RelicModel> GenerateAllRelics() =>
         [
             ModelDb.Relic<FrostFang>(), ModelDb.Relic<Assassin>(),
+            ModelDb.Relic<LingdawnpaoSurvival>(),
             ModelDb.Relic<CozyPelt>(), ModelDb.Relic<Frostbell>(), ModelDb.Relic<SnowballPouch>(),
             ModelDb.Relic<CatSnack>(), ModelDb.Relic<Thicket>(),
         ];

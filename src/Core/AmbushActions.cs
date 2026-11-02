@@ -50,7 +50,7 @@ namespace lingdawnpao.Core
             if (card == null)
             {
                 Log.Info("伏击者：埋牌动作找不到对应的牌（可能已不在战斗中），跳过");
-                PendingBuryVisual.Resolve(buried: true); // 牌已不在局内，无从归还
+                PendingBuryVisual.Resolve(Player, NetCard, buried: true); // 牌已不在局内，无从归还
                 return;
             }
 
@@ -63,13 +63,19 @@ namespace lingdawnpao.Core
                 Log.Info($"伏击者：埋牌动作条件不再满足（牌堆={pile?.Type}，区域={zone.Count}/{zone.Capacity}，冷却={zone.IsCoolingDown}），跳过");
                 // 关键：此时卡面 holder 还挂在 NPlayerHand 的等待队列里无人认领，
                 // 必须归还手牌，否则就是"隐形但可打出的牌"（2026-09-28 用户报障）
-                PendingBuryVisual.Resolve(buried: false);
+                PendingBuryVisual.Resolve(Player, NetCard, buried: false);
                 return;
             }
 
             Log.Info($"伏击者：执行埋牌 {card.Id.Entry}（玩家 {Player.NetId}）");
-            await AmbushZone.BuryAsync(new GameActionPlayerChoiceContext(this), card, Player);
-            PendingBuryVisual.Resolve(buried: true);
+            try
+            {
+                await AmbushZone.BuryAsync(new GameActionPlayerChoiceContext(this), card, Player);
+            }
+            finally
+            {
+                PendingBuryVisual.Resolve(Player, NetCard, buried: card.Pile?.Type != PileType.Hand);
+            }
         }
 
         public override INetAction ToNetAction() => new NetBuryCardAction { card = NetCard };
@@ -98,31 +104,29 @@ namespace lingdawnpao.Core
     /// </summary>
     internal static class PendingBuryVisual
     {
-        private static NHandCardHolder? _pendingHolder;
+        private static readonly PendingBuryEntries<NHandCardHolder> Entries = new();
 
-        /// <summary>拦截点调用：记住这次出牌的手牌 holder（在 Cleanup 之前取，holder 本身不会被释放）。</summary>
-        public static void Register(NCardPlay play) => _pendingHolder = play.Holder;
-
-        /// <summary>
-        /// 埋牌动作结算后调用。<paramref name="buried" /> 为 true（埋成功了或牌已不在局内）只清登记；
-        /// 为 false（埋牌被跳过）时把 holder 归还手牌，消除隐形卡。
-        /// </summary>
-        public static void Resolve(bool buried)
+        public static void Register(NCardPlay play)
         {
-            NHandCardHolder? holder = _pendingHolder;
-            _pendingHolder = null;
-            if (buried || holder == null)
-            {
-                return;
-            }
+            if (play.Holder.CardModel is not { } card) return;
+            Entries.Register(card.Owner.NetId, NetCombatCard.FromModel(card).CombatCardIndex, play.Holder);
+        }
 
+        public static void Clear(Player player) => Entries.Clear(player.NetId);
+
+        public static void Resolve(Player player, NetCombatCard netCard, bool buried)
+        {
+            NHandCardHolder? holder = Entries.Take(player.NetId, netCard.CombatCardIndex);
+            if (buried || holder == null || !Godot.GodotObject.IsInstanceValid(holder)) return;
             try
             {
-                if (NCombatRoom.Instance?.Ui?.Hand is NPlayerHand hand)
+                if (holder.CardModel?.Pile?.Type == PileType.Hand
+                    && NCombatRoom.Instance?.Ui?.Hand is NPlayerHand hand)
                 {
-                    AccessTools.Method(typeof(NPlayerHand), "ReturnHolderToHand")
-                        ?.Invoke(hand, new object?[] { holder });
-                    Log.Info("伏击者：埋牌未执行，卡面已归还手牌（隐形卡修复生效）");
+                    AccessTools.Method(typeof(NPlayerHand), "ReturnHolderToHand")?.Invoke(hand, new object?[] { holder });
+                    if (holder.CardNode is { } node) AmbushCardVisuals.RestoreForHand(node);
+                    holder.UpdateCard();
+                    Log.Info("伏击者：埋牌未执行，已归还对应手牌卡面");
                 }
             }
             catch (Exception e)
@@ -169,9 +173,10 @@ namespace lingdawnpao.Core
         protected override Task ExecuteAction()
         {
             AmbushZone.For(Player).IsAmbushMode = Enabled;
-            Player.GetRelic<FrostFang>()?.OnAmbushModeSynced();
-            // 「磨爪」在伏击形态下耗能为 0，形态一翻转就得立刻反映到手牌费用上
+            // Refresh after changing state, before any relic animation that could skip/interrupt its UI callback.
             AmbushZone.SyncCardCosts(Player);
+            LingdawnpaoAnimationController.SyncMode(Player);
+            Player.GetRelic<FrostFang>()?.OnAmbushModeSynced();
             return Task.CompletedTask;
         }
 

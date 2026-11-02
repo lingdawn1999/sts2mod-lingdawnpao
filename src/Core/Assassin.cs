@@ -53,7 +53,7 @@ namespace lingdawnpao.Core
                 choiceContext,
                 player,
                 new CardSelectorPrefs(SelectionScreenPrompt, 0, 1),
-                CanBury,
+                CanBuryForFree,
                 this)).ToList();
             if (picked.Count == 0 || picked[0].Pile?.Type != PileType.Hand)
             {
@@ -63,21 +63,6 @@ namespace lingdawnpao.Core
             Flash();
             Log.Info($"暗杀者：回合开始自选埋牌 {picked[0].Id.Entry}（玩家 {player.NetId}）");
             await AmbushZone.BuryAsync(choiceContext, picked[0], player, spendResources: false);
-        }
-
-        /// <summary>
-        /// 可埋范围与手动埋牌保持一致（BuryCardAction 要求 CanPlay）；差别是本遗物的埋入免费，
-        /// 所以"只因能量/辉星不足而打不出"的牌也允许选。
-        /// </summary>
-        private static bool CanBury(CardModel card)
-        {
-            if (card.CanPlay(out UnplayableReason reason, out AbstractModel? _))
-            {
-                return true;
-            }
-
-            return reason.HasFlag(UnplayableReason.EnergyCostTooHigh)
-                || reason.HasFlag(UnplayableReason.StarCostTooHigh);
         }
     }
 }

@@ -1,0 +1,10 @@
+<Project Sdk="Godot.NET.Sdk/4.5.1">
+  <PropertyGroup><TargetFramework>net9.0</TargetFramework><EnableDynamicLoading>true</EnableDynamicLoading><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="System.IO.Hashing" Version="9.0.0" />
+    <Reference Include="lingdawnpao" HintPath="../../.godot/mono/temp/bin/Debug/lingdawnpao.dll" />
+    <Reference Include="sts2" HintPath="../../libs/sts2.dll" Condition="'$(Sts2Ref)' != 'beta'" />
+    <Reference Include="sts2" HintPath="$(BetaGameReference)" Condition="'$(Sts2Ref)' == 'beta'" />
+    <Reference Include="0Harmony" HintPath="../../libs/0Harmony.dll" />
+  </ItemGroup>
+</Project>

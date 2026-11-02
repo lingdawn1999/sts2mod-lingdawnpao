@@ -53,8 +53,9 @@ namespace lingdawnpao.Core
 
             // 填到上限：循环条件先判满，避免多造一张孤儿牌（照「雪灾」填晕眩的写法）
             await AmbushZone.BringOutBeforeGenerateAsync(choiceContext, cardPlay.Target, Owner);
+            if (!AmbushZone.CanContinueCombat(Owner)) return;
             AmbushZoneState zone = AmbushZone.For(Owner);
-            while (!zone.IsFull && !zone.IsCoolingDown)
+            while (AmbushZone.CanContinueCombat(Owner) && !zone.IsFull && !zone.IsCoolingDown)
             {
                 Snowball snowball = CombatState!.CreateCard<Snowball>(Owner);
                 if (!await AmbushZone.BuryGeneratedAsync(choiceContext, Owner, snowball, "雪球技巧"))

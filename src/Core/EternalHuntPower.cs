@@ -40,6 +40,7 @@ namespace lingdawnpao.Core
             }
 
             _buriedThisTurn = 0;
+            if (Owner.Player is { } player) AmbushZone.SyncCardCosts(player);
             return Task.CompletedTask;
         }
 
@@ -47,7 +48,20 @@ namespace lingdawnpao.Core
         public void NotifyBury()
         {
             _buriedThisTurn++;
+            if (Owner.Player is { } player) AmbushZone.SyncCardCosts(player);
             Log.Info($"永恒狩猎：本回合已埋入 {_buriedThisTurn} 张（免费额度 {Amount} 张）", 2);
+        }
+
+        public override Task AfterApplied(Creature? applier, CardModel? cardSource)
+        {
+            if (Owner.Player is { } player) AmbushZone.SyncCardCosts(player);
+            return Task.CompletedTask;
+        }
+
+        public override Task AfterRemoved(Creature oldOwner)
+        {
+            if (oldOwner.Player is { } player) AmbushZone.SyncCardCosts(player);
+            return Task.CompletedTask;
         }
 
         /// <summary>打出会进伏击区域的牌 → 费用清零（过五道闸，见 <see cref="ShouldSkip" />）。</summary>

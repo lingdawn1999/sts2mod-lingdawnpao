@@ -10,3 +10,7 @@ libs/
 # 上传器运行日志
 mod-uploader.log
 
+# 回归测试构建缓存
+tests/**/obj/
+tests/**/bin/
+

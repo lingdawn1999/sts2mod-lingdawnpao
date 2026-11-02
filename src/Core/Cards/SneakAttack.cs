@@ -14,18 +14,13 @@ using MegaCrit.Sts2.Core.ValueProps;
 namespace lingdawnpao.Core
 {
     /// <summary>
-    /// 偷袭：埋伏机制的示例攻击牌，**基础卡（Basic）**——起始牌组 1 张，除开局外无获取途径
-    /// （本体同类：猎人的中和/生存者；Basic 被本体的商店、战斗奖励、战斗内生成三处统一排除）。
-    /// 直接打出：造成伤害并给予虚弱；从伏击区域**跨回合**带出打出：再加一段伤害与一层虚弱。
-    /// **2026-09-23 埋伏体系大改**：判定从"被带出"改为"跨回合潜伏过"（见 <see cref="AmbushZone.IsVeteranAmbush" />）；
-    /// 数值同时上调——基础 5 伤 → **6 伤 + 1 虚弱**（虚弱从"仅埋伏段"移到基础段，让直接打出也能立住），
-    /// 埋伏从 +3 伤 +1 虚弱 → **+4 伤 +1 虚弱**（合计 10 伤 2 虚弱）。升级**只加伤害**：
-    /// 基础 6 → 8、埋伏 4 → 6，虚弱固定 1（用户 2026-09-23 定案）。
-    /// **2026-09-23 回削基础段**（用户定案）：基础伤害 6 → **5**（升级同步 8 → **7**，仍走同一条 `UpgradeValueBy(2m)`）；
-    /// 埋伏段 4 / 6 保持不变 → 一次埋伏的合计伤害从 10 变成 **9**（2 层虚弱不变）。
+    /// 偷袭：1费初始攻击，造成6（8）点伤害，给予1（2）层虚弱。
+    /// 埋伏额外给予1层虚弱，造成4（6）点伤害；十面埋伏仅收集这一额外部分。
     /// </summary>
-    public sealed class SneakAttack : CardModel, IAmbushBonusCard
+    public class SneakAttack : CardModel, IAmbushBonusCard
     {
+        protected virtual decimal InitialDamage => 6m;
+        protected virtual decimal InitialAmbushDamage => 4m;
         protected override IEnumerable<IHoverTip> ExtraHoverTips =>
         [
             HoverTipFactory.FromPower<WeakPower>(),
@@ -34,13 +29,18 @@ namespace lingdawnpao.Core
 
         protected override IEnumerable<DynamicVar> CanonicalVars =>
         [
-            new DamageVar(6m, ValueProp.Move), // 2026-09-28 前期补强：基础段 5 → 6
-            new DamageVar("AmbushDamage", 7m, ValueProp.Move), // 埋伏段 4 → 7
+            new DamageVar(InitialDamage, ValueProp.Move),
+            new DamageVar("AmbushDamage", InitialAmbushDamage, ValueProp.Move),
             new PowerVar<WeakPower>(1m),
+            new PowerVar<WeakPower>("AmbushWeak", 1m),
         ];
 
-        public SneakAttack()
-            : base(1, CardType.Attack, CardRarity.Basic, TargetType.AnyEnemy)
+        public SneakAttack() : this(1, CardRarity.Basic)
+        {
+        }
+
+        protected SneakAttack(int cost, CardRarity rarity)
+            : base(cost, CardType.Attack, rarity, TargetType.AnyEnemy)
         {
         }
 
@@ -56,10 +56,12 @@ namespace lingdawnpao.Core
 
             if (AmbushZone.IsVeteranAmbush(this))
             {
+                AmbushEffects.Record(this);
                 var ambushDamage = (DamageVar)DynamicVars["AmbushDamage"];
                 for (int i = 0; i < AmbushZone.AmbushTriggerCount(Owner); i++)
                 {
-                    // 埋伏段只有伤害、不再补挂虚弱（2026-09-28 用户定稿：虚弱归基础段，随升级 1→2）
+                    await PowerCmd.Apply<WeakPower>(choiceContext, cardPlay.Target,
+                        DynamicVars["AmbushWeak"].BaseValue, Owner.Creature, this);
                     await DamageCmd.Attack(ambushDamage.BaseValue).FromCardCompat(this, cardPlay).Targeting(cardPlay.Target)
                         .WithHitFx("vfx/vfx_attack_slash")
                         .Execute(choiceContext);
@@ -70,7 +72,7 @@ namespace lingdawnpao.Core
         protected override void OnUpgrade()
         {
             DynamicVars.Damage.UpgradeValueBy(2m);                       // 基础段 6 → 8
-            DynamicVars["AmbushDamage"].UpgradeValueBy(2m);              // 埋伏段 7 → 9
+            DynamicVars["AmbushDamage"].UpgradeValueBy(2m);              // 埋伏段 4 → 6，额外虚弱固定1
             DynamicVars["WeakPower"].UpgradeValueBy(1m);                 // 虚弱 1 → 2（2026-09-28 用户定稿）
         }
     }

@@ -77,8 +77,7 @@ namespace lingdawnpao.Core
 
         /// <summary>
         /// 生成 count 张大雪球加入手牌；<paramref name="upgrade" /> 为 true 时生成**升级版**（大雪球+）。
-        /// 目前只有「雪场」的升级版走高一级的牌（走的是另一条路，见 SnowfieldPower），
-        /// 产弹牌里「大雪球！」升级只加张数、仍是普通版（2026-09-25 用户削弱后）。
+        /// 「大雪球！」升级后生成大雪球+；「雪场」升级后仍生成普通大雪球。
         /// </summary>
         public static async Task<List<CardModel>> CreateIntoHandAsync(Player owner, int count, ICombatState combatState, bool upgrade = false)
         {

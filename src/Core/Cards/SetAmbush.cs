@@ -45,10 +45,11 @@ namespace lingdawnpao.Core
             AmbushZoneState zone = AmbushZone.For(Owner);
             // 先带出区域旧牌，再生成新牌（避免带出刚生成的牌，见 AmbushZone 带出顺序约定）
             await AmbushZone.BringOutBeforeGenerateAsync(choiceContext, cardPlay.Target, Owner);
+            if (!AmbushZone.CanContinueCombat(Owner)) return;
 
             for (int i = 0; i < DynamicVars.Repeat.IntValue; i++)
             {
-                if (zone.IsFull)
+                if (!AmbushZone.CanContinueCombat(Owner) || zone.IsFull || zone.IsCoolingDown)
                 {
                     break;
                 }

@@ -1,0 +1,13 @@
+
+snow_leopard_rest.png
+size: 1544,1032
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+rest-leopard
+  rotate: false
+  xy: 4, 4
+  size: 1536, 1024
+  orig: 1536, 1024
+  offset: 0, 0
+  index: -1

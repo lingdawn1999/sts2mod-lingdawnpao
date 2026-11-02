@@ -12,6 +12,7 @@ using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Logging;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Nodes.Cards;
+using MegaCrit.Sts2.Core.TestSupport;
 
 namespace lingdawnpao.Core
 {
@@ -209,14 +210,18 @@ namespace lingdawnpao.Core
         /// </summary>
         public static void RefreshHandVisuals(Player player)
         {
+            // Power-removal hooks also run during death, when hand nodes can already be leaving the tree.
+            if (player.Creature.IsDead) return;
             CardPile? hand = player.PlayerCombatState?.Hand;
             if (hand == null)
             {
                 return;
             }
 
-            foreach (CardModel card in hand.Cards)
+            foreach (CardModel card in hand.Cards.ToArray())
             {
+                card.InvokeEnergyCostChanged();
+                if (TestMode.IsOn) continue;
                 NCard? node = NCard.FindOnTable(card, PileType.Hand);
                 node?.UpdateVisuals(PileType.Hand, CardPreviewMode.Normal);
             }

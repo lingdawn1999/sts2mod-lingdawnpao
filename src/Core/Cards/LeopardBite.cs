@@ -10,13 +10,14 @@ using MegaCrit.Sts2.Core.Models;
 namespace lingdawnpao.Core
 {
     /// <summary>
-    /// 豹咬：2 费普通技能，挂 8 层冰冻（升级 11），自带保留。
+    /// 豹咬：2费普通技能，给予10（14）层冰冻，自带保留。
     /// 与覆霜（1 费 5 层、立即用）互补：豹咬费用高、层数厚，可以一直留在手牌里，
-    /// 等冰冻层数把目标压进处决线（HP < 层数）时再咬下致命一口。
+    /// 等目标生命值降至冰冻处决线（HP <= 层数）时再使用。
     /// **2026-09-24 用户加强：7/10 → 9/13**（升级增量 +3 → +4）。
     /// 起因：用户判定冰冻体系前期太弱（挂冰牌多为技能牌、费用换不来即时压制），
     /// 先把这张"厚层数"的通用挂冰件抬上来，同时给全体系加了"对敌挂冰无视格挡"的双标（见 FrostbitePower）。
     /// **2026-09-25 用户回调：9/13 → 8/11**（基础 −1 层，升级增量 +4 → +3）——削弱 1 点基础冰冻。
+    /// 2026-10-27：按用户定案提高至10（14），突出集中挂冰和保留等待的价值。
     /// </summary>
     public sealed class LeopardBite : CardModel, ILingdawnpaoCard
     {
@@ -27,7 +28,7 @@ namespace lingdawnpao.Core
 
         protected override IEnumerable<DynamicVar> CanonicalVars =>
         [
-            new PowerVar<FrostbitePower>(8m),
+            new PowerVar<FrostbitePower>(10m),
         ];
 
         public override IEnumerable<CardKeyword> CanonicalKeywords => new[] { CardKeyword.Retain };
@@ -46,7 +47,7 @@ namespace lingdawnpao.Core
 
         protected override void OnUpgrade()
         {
-            DynamicVars["FrostbitePower"].UpgradeValueBy(3m); // 冰冻 8 → 11
+            DynamicVars["FrostbitePower"].UpgradeValueBy(4m); // 冰冻 10 → 14
         }
     }
 }

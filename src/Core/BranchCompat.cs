@@ -15,6 +15,34 @@ using MegaCrit.Sts2.Core.ValueProps;
 
 namespace lingdawnpao.Core
 {
+    /// <summary>Exhaust returns Task on public and Task&lt;CardPileAddResult?&gt; on beta.</summary>
+    internal static class CardCmdCompat
+    {
+        private static readonly MethodInfo? ExhaustMethod = typeof(CardCmd).GetMethod("Exhaust",
+            BindingFlags.Public | BindingFlags.Static, null,
+            [typeof(PlayerChoiceContext), typeof(CardModel), typeof(bool), typeof(bool)], null);
+
+        public static bool Resolve() => ExhaustMethod != null
+            && typeof(Task).IsAssignableFrom(ExhaustMethod.ReturnType);
+
+        public static async Task Exhaust(PlayerChoiceContext context, CardModel card,
+            bool causedByEthereal = false, bool skipVisuals = false)
+        {
+            if (!Resolve()) throw new NotSupportedException("芝士雪豹：找不到兼容的 CardCmd.Exhaust 接口");
+            Task task;
+            try
+            {
+                task = (Task)ExhaustMethod!.Invoke(null, [context, card, causedByEthereal, skipVisuals])!;
+            }
+            catch (TargetInvocationException exception) when (exception.InnerException != null)
+            {
+                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception.InnerException).Throw();
+                throw;
+            }
+            await task;
+        }
+    }
+
     /// <summary>
     /// 双分支兼容层（2026-09-25）：**一份 DLL 同时跑正式版（public）与测试分支（public-beta）**。
     /// <para>
@@ -24,8 +52,7 @@ namespace lingdawnpao.Core
     /// 缓存委托，之后照常调用。源码里因此只保留"两分支都存在"的编译期引用。
     /// </para>
     /// <para>
-    /// **本文件负责的两处**（其余几处是 override/补丁，见 Patches.cs 与 <see cref="Lingdawnpao" />、
-    /// <see cref="ThickCoat" /> 的注释）：
+    /// **本文件负责的两处**（其余 override/补丁见 Patches.cs 与 <see cref="Lingdawnpao" />）：
     /// ① `AttackCommand.FromCard`：public 是 `(CardModel)`、public-beta 是 `(CardModel, CardPlay?)`；
     /// ② `CreatureCmd.Damage`：两个分支都有的 5 参重载等价于 `cardSource = null`（实测两边都这么转发），
     ///    所以只有**同时要传 dealer 与 cardSource** 的调用点需要桥接，public 落到 6 参、

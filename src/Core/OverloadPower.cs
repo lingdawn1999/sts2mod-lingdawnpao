@@ -6,55 +6,38 @@ using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Entities.Powers;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
-using MegaCrit.Sts2.Core.Logging;
 using MegaCrit.Sts2.Core.Models;
 
-namespace lingdawnpao.Core
+namespace lingdawnpao.Core;
+
+/// <summary>记录过载的下回合代价，不改变当前回合的区域属性。</summary>
+public sealed class OverloadPower : PowerModel
 {
-    /// <summary>
-    /// 过载（玩家增益，由「过载」卡赋予）：管理伏击区的"过载 → 冷却 → 恢复"两回合状态机。
-    /// 打出过载卡的当回合：IsOverloaded（区内牌视为所有类型）。
-    /// 下个玩家回合开始：转为 IsCoolingDown（整个区域失效一回合）。
-    /// 再下个回合开始：冷却结束、恢复常态，并移除本能力。
-    /// </summary>
-    public sealed class OverloadPower : PowerModel
+    private int _activatesAtTurn = int.MaxValue;
+    public override PowerType Type => PowerType.Buff;
+    public override PowerStackType StackType => PowerStackType.Single;
+
+    public override async Task BeforeSideTurnStart(PlayerChoiceContext choiceContext, CombatSide side,
+        IReadOnlyList<Creature> participants, ICombatState combatState)
     {
-        public override PowerType Type => PowerType.Buff;
+        if (!participants.Contains(Owner) || Owner.Player is not { } player
+            || player.PlayerCombatState is not { } combat || combat.TurnNumber < _activatesAtTurn) return;
+        var exhaustion = Owner.GetPower<AmbushExhaustionPower>()
+            ?? await PowerCmd.Apply<AmbushExhaustionPower>(choiceContext, Owner, 1m, Owner, null);
+        exhaustion?.RefreshDuration();
+        await AmbushZone.RecomputeBonusesAsync(choiceContext, player);
+        AmbushZoneUi.Refresh();
+        await PowerCmd.Remove(this);
+    }
 
-        public override PowerStackType StackType => PowerStackType.Single;
+    internal void ScheduleForNextTurn()
+    {
+        if (Owner?.Player?.PlayerCombatState is { } combat) _activatesAtTurn = combat.TurnNumber + 1;
+    }
 
-        public override async Task AfterSideTurnStart(CombatSide side, IReadOnlyList<Creature> participants, ICombatState combatState)
-        {
-            if (!participants.Contains(base.Owner) || base.Owner.Player == null)
-            {
-                return;
-            }
-
-            AmbushZoneState zone = AmbushZone.For(base.Owner.Player);
-            if (zone.IsOverloaded)
-            {
-                zone.IsOverloaded = false;
-                zone.IsCoolingDown = true;
-                Log.Info("伏击区域：过载结束，进入冷却（本回合区域失效）");
-            }
-            else if (zone.IsCoolingDown)
-            {
-                zone.IsCoolingDown = false;
-                Log.Info("伏击区域：冷却结束，恢复正常");
-                await AmbushZone.RecomputeBonusesAsync(new ThrowingPlayerChoiceContext(), base.Owner.Player);
-                AmbushZoneUi.Refresh();
-                await PowerCmd.Remove(this);
-                return;
-            }
-            else
-            {
-                // 状态异常（例如战斗重置）：直接移除，避免残留
-                await PowerCmd.Remove(this);
-                return;
-            }
-
-            await AmbushZone.RecomputeBonusesAsync(new ThrowingPlayerChoiceContext(), base.Owner.Player);
-            AmbushZoneUi.Refresh();
-        }
+    public override Task AfterApplied(Creature? applier, CardModel? cardSource)
+    {
+        ScheduleForNextTurn();
+        return Task.CompletedTask;
     }
 }

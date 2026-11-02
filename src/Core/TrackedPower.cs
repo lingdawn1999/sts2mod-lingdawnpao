@@ -15,20 +15,20 @@ namespace lingdawnpao.Core
     /// 追猎（敌方 Debuff，由「追猎」卡赋予）：被追猎的敌人会成为**从伏击区域带出的牌的锁定目标**——
     /// 正常情况下带出的牌跟随"本回合打出的那张牌"的目标，挂了追猎后一律改打被追猎的敌人。
     /// 层数 = 持续回合数（同本体虚弱/易伤的约定），敌方回合结束时递减，所以 1 层 = 本轮内有效、升级的 2 层 = 两轮。
-    /// 另外（用户要求，避免这张卡只是个"功能件"）：被追猎的敌人**挨到"从伏击区域带出的牌"的攻击时伤害 ×1.25**，
+    /// 另外：被追猎的敌人挨到从伏击区域带出的牌的攻击时，伤害×1.5。
     /// 作用域同样用 AmbushZone.IsAmbushPlay 限定，所以随便打的牌不吃这个加成。
     /// 目标重定向发生在 AmbushZone.BringOutFirstAsync，由本类的 FindTrackedTarget 提供目标。
     /// </summary>
     public sealed class TrackedPower : PowerModel
     {
-        private const decimal _ambushDamageMultiplier = 1.25m;
+        private const decimal _ambushDamageMultiplier = 1.5m;
 
         public override PowerType Type => PowerType.Debuff;
 
         public override PowerStackType StackType => PowerStackType.Counter;
 
         /// <summary>
-        /// 伤害乘区（从伏击区域带出的牌打它时 ×1.25）。**刻意不是 override**：签名在 public-beta 末尾
+        /// 伤害乘区（从伏击区域带出的牌打它时×1.5）。**刻意不是 override**：签名在 public-beta 末尾
         /// 多了一个 `CardPlay?`，override 必须逐字匹配签名，一份 DLL 没法同时匹配两个分支
         /// → 改由 Patches.cs 的 `AbstractModel_ModifyDamageMultiplicative_PowerMultiplierPatch` 挂在基类实现上按类型分发。
         /// </summary>

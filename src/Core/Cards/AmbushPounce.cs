@@ -47,6 +47,7 @@ namespace lingdawnpao.Core
             // 埋伏带出时不吃选定目标，直接打全体（「伏兵」会让这一支重复触发）
             if (AmbushZone.IsVeteranAmbush(this))
             {
+                AmbushEffects.Record(this);
                 decimal allDamage = DynamicVars.Damage.BaseValue + DynamicVars["AmbushBonus"].BaseValue;
                 for (int i = 0; i < AmbushZone.AmbushTriggerCount(Owner); i++)
                 {

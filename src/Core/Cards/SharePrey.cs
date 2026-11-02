@@ -13,11 +13,8 @@ using MegaCrit.Sts2.Core.Models;
 namespace lingdawnpao.Core
 {
     /// <summary>
-    /// 分享猎物：**联机专属 · 1 费蓝卡技能**（2026-09-22 用户定稿）。
-    /// **其他**玩家获得 **2** 张[gold]猎物+[/gold]。[gold]消耗[/gold]。升级：2 → 3 张。
-    /// 猎物 = `Prey`（0 费 3 伤 + 抽 1 的 Token 攻击），"猎物+" = `CardCmd.Upgrade`（抽 1 → 抽 2）。
-    /// 注意是"其他玩家"——自己不给（GetTeammatesOf 排除自己）。
-    /// 联机约束：`MultiplayerOnly`。
+    /// 分享猎物：联机专属，1费罕见技能，消耗。
+    /// 所有存活玩家（包括自己）获得1（2）张猎物+。
     /// </summary>
     public sealed class SharePrey : CardModel, ILingdawnpaoCard
     {
@@ -25,7 +22,7 @@ namespace lingdawnpao.Core
 
         protected override IEnumerable<DynamicVar> CanonicalVars =>
         [
-            new CardsVar(2),
+            new CardsVar(1),
         ];
 
         public override IEnumerable<CardKeyword> CanonicalKeywords => [CardKeyword.Exhaust];
@@ -42,11 +39,11 @@ namespace lingdawnpao.Core
             ICombatState? combatState = CombatState;
             if (combatState == null) return;
 
-            IEnumerable<Creature> others = from c in combatState.GetTeammatesOf(Owner.Creature)
-                                           where c != null && c.IsAlive && c.IsPlayer && c != Owner.Creature
+            IEnumerable<Creature> allies = from c in combatState.GetTeammatesOf(Owner.Creature)
+                                           where c != null && c.IsAlive && c.IsPlayer
                                            select c;
 
-            foreach (Creature ally in others)
+            foreach (Creature ally in allies)
             {
                 Player? allyOwner = ally.Player;
                 if (allyOwner == null) continue;
@@ -67,7 +64,7 @@ namespace lingdawnpao.Core
 
         protected override void OnUpgrade()
         {
-            DynamicVars.Cards.UpgradeValueBy(1m); // 2 → 3
+            DynamicVars.Cards.UpgradeValueBy(1m); // 1 → 2
         }
     }
 }

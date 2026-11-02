@@ -56,6 +56,7 @@ namespace lingdawnpao.Core
             decimal cards = DynamicVars.Cards.BaseValue;
             if (AmbushZone.IsVeteranAmbush(this))
             {
+                AmbushEffects.Record(this);
                 cards += DynamicVars["AmbushCards"].BaseValue;
             }
 

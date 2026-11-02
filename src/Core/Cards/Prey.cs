@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using MegaCrit.Sts2.Core.Commands;
+using MegaCrit.Sts2.Core.Combat;
+using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Localization.DynamicVars;
@@ -11,7 +13,7 @@ using MegaCrit.Sts2.Core.ValueProps;
 namespace lingdawnpao.Core
 {
     /// <summary>
-    /// 猎物：「捕猎」生成的 Token 衍生攻击，只能出现在伏击区域、被带出时免费打出。
+    /// 猎物：「捕猎」生成的 Token 衍生攻击，基础效果生成到伏击区域，埋伏效果生成到手牌。
     /// 0 费 **1 伤** + 抽 1 张牌，自带消耗（带出结算后进消耗堆，不进牌组循环）；
     /// **升级：伤害 1 → 3**（抽牌数固定 1，不再随升级增加）。
     /// 战斗结束仍埋着的由 AmbushZone.ReturnBuriedCardsAsync 按 Token 稀有度直接销毁。
@@ -46,6 +48,15 @@ namespace lingdawnpao.Core
                 .WithHitFx("vfx/vfx_attack_slash")
                 .Execute(choiceContext);
             await CardPileCmd.Draw(choiceContext, DynamicVars.Cards.BaseValue, Owner);
+        }
+
+        /// <summary>捕猎及十面埋伏共用：生成一张猎物到手牌，按原始埋伏的升级状态生成。</summary>
+        internal static async Task CreateIntoHandAsync(Player owner, ICombatState combatState, bool upgrade)
+        {
+            if (!AmbushZone.CanContinueCombat(owner)) return;
+            Prey prey = combatState.CreateCard<Prey>(owner);
+            if (upgrade) CardCmd.Upgrade(prey);
+            await CardPileCmd.AddGeneratedCardsToCombat(new[] { prey }, PileType.Hand, owner);
         }
 
         protected override void OnUpgrade()

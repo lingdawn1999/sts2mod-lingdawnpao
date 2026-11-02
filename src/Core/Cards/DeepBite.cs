@@ -98,6 +98,7 @@ namespace lingdawnpao.Core
 
             Log.Info($"断腕：{monster.Id} 当前意图不是攻击 → 击晕");
             await CreatureCmd.Stun(cardPlay.Target);
+            AmbushEffects.Record(this);
         }
 
         protected override void OnUpgrade()

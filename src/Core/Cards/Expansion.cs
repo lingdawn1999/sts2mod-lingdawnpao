@@ -1,50 +1,40 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Localization.DynamicVars;
-using MegaCrit.Sts2.Core.Logging;
 using MegaCrit.Sts2.Core.Models;
 
 namespace lingdawnpao.Core
 {
     /// <summary>
-    /// 扩张：0 费罕见能力。仅有在伏击区域**已满**时才生效，使上限 +1（升级 +2）。
-    /// 与「张网以待」（无条件 +2 上限、金卡）互补：本卡 0 费、抽到即可随手打，
-    /// 区域满时白赚一格；未满打出不消耗费用、只是不生效，不会造成亏损。
+    /// 扩张：0费罕见技能，消耗。伏击区域上限+1（升级+2）。
+    /// 无需区域已满；技能类型不触发首次使用能力牌的额外扩容。
     /// </summary>
     public sealed class Expansion : CardModel, ILingdawnpaoCard
     {
+        public override IEnumerable<CardKeyword> CanonicalKeywords => [CardKeyword.Exhaust];
+
         protected override IEnumerable<DynamicVar> CanonicalVars =>
         [
             new RepeatVar(1),
         ];
 
         public Expansion()
-            : base(0, CardType.Power, CardRarity.Uncommon, TargetType.Self)
+            : base(0, CardType.Skill, CardRarity.Uncommon, TargetType.Self)
         {
         }
 
         protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
         {
-            await CreatureCmd.TriggerAnim(Owner.Creature, "PowerUp", Owner.Character.PowerUpAnimDelay);
-            AmbushZoneState zone = AmbushZone.For(Owner);
-
-            if (!zone.IsFull)
-            {
-                Log.Info("伏击区域：未满，扩张不生效");
-                return;
-            }
-
-            // 统一扩容入口（硬顶 9）；区满时白赚一格，未满打出不消耗也不生效
+            // 统一扩容入口保留区域上限9的限制。
             await AmbushZone.AddCapacityAsync(choiceContext, Owner, DynamicVars.Repeat.IntValue, "扩张");
             Owner.GetRelic<FrostFang>()?.Flash();
         }
 
         protected override void OnUpgrade()
         {
-            DynamicVars.Repeat.UpgradeValueBy(1m); // 上限 +1 → +2（2026-09-24 定案：基础保持 1，升级 +1）
+            DynamicVars.Repeat.UpgradeValueBy(1m); // 上限 +1 → +2
         }
     }
 }

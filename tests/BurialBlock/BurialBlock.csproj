@@ -1,0 +1,16 @@
+<Project Sdk="Godot.NET.Sdk/4.5.1">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <Nullable>enable</Nullable>
+    <AssemblyName>BurialBlockTests</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="lingdawnpao" HintPath="../../.godot/mono/temp/bin/Debug/lingdawnpao.dll" />
+    <Reference Include="AmbushRework" HintPath="../../.godot/ambush-tests/bin/Debug/net9.0/AmbushRework.dll" />
+    <Reference Include="0Harmony" HintPath="../../libs/0Harmony.dll" />
+    <Reference Include="sts2" HintPath="../../libs/sts2.dll" Condition="'$(Sts2Ref)' != 'beta'" />
+    <Reference Include="sts2" HintPath="../../.godot/ambush-tests/runtime-beta-no-telemetry/sts2.dll" Condition="'$(Sts2Ref)' == 'beta'" />
+    <Reference Include="System.IO.Hashing" HintPath="$(NuGetPackageRoot)/system.io.hashing/9.0.0/lib/net9.0/System.IO.Hashing.dll" Condition="'$(Sts2Ref)' == 'beta'" />
+  </ItemGroup>
+</Project>

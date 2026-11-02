@@ -1,0 +1,7 @@
+[gd_resource type="SpineSkeletonDataResource" load_steps=3 format=3]
+[ext_resource type="SpineAtlasResource" path="res://animations/characters/lingdawnpao/v6_motion/snow_leopard_v6.spatlas" id="1"]
+[ext_resource type="SpineSkeletonFileResource" path="res://animations/characters/lingdawnpao/v6_motion/snow_leopard_v6.spjson" id="2"]
+[resource]
+atlas_res = ExtResource("1")
+skeleton_file_res = ExtResource("2")
+default_mix = 0.07

@@ -15,16 +15,21 @@ namespace lingdawnpao.Core
 {
     /// <summary>
     /// 观星（玩家增益，由「观星」卡赋予，无层数语义 → `Single`）：
-    /// **在你的回合开始时，查看抽牌堆顶的 5 张牌，可以将其中的任意张放进弃牌堆**
+    /// **在你的回合开始时（摸牌之后），查看抽牌堆顶的 5 张牌，可以将其中的任意张放进弃牌堆**
     /// （未选中的牌保持原顺序留在牌堆顶）。
-    /// **⚠️ 钩子选 `BeforeSideTurnStart` 而不是 `AfterSideTurnStart`**：本能力**需要玩家做选择**，
-    /// 而只有 `BeforeSideTurnStart` 的签名带 `PlayerChoiceContext choiceContext`
-    /// （本体 `AggressionPower` 就是在这个钩子里操作玩家的牌堆，见
-    /// sts2mod-unciphered/src/Core/Models/Powers/AggressionPower.cs）；mod 内「雪场」「动物朋友」用 After 是因为它们**只生成资源、不需要玩家交互**。
-    /// **联机**：`participants.Contains(Owner)` 过滤，只在自己回合触发。
+    /// <para>
+    /// **⚠️ 2026-10-28 修 bug：交互从 `BeforeSideTurnStart` 挪到 `AfterPlayerTurnStart`**。
+    /// 原因：`BeforeSideTurnStart` 的暂停-恢复机制**不等玩家交互**——UI 一弹，回合流程立刻继续，
+    /// 摸牌把正在查看的顶牌直接抽进手（实测报障："出现 UI 了但还没交互就把牌塞手上了"）。
+    /// 本体该钩子的 6 个实现**全是自动效果，没有一个弹玩家交互**——这不是巧合，是雷区。
+    /// `AfterPlayerTurnStart`（摸牌后、获得操作权前）才是交互安全区（本体 `ToolsOfTheTrade`
+    /// "回合开始抽1弃1" 的交互先例位置）；挪过来后玩家看的是"接下来要摸的 5 张"，规划下回合摸牌，
+    /// 更贴"预见"的本意。
+    /// **联机**：`player != Owner.Player` 过滤，只在自己一侧触发；交互走 PlayerChoiceSynchronizer 同步。
     /// **顶牌顺序**：`PileType.Draw.GetPile(owner).Cards` 索引 0 = 牌堆顶（本体 `CardPileCmd.Draw` 取的就是 `Cards.FirstOrDefault()`）。
     /// **选择范围**：`CardSelectCmd.FromCombatPile(..., filter: top.Contains)` 把可选牌限死在这 5 张内，
     /// `min = 0` 允许一张都不弃；提示用本体内置的 `CardSelectorPrefs.DiscardSelectionPrompt`（无需自写 selectionScreenPrompt 键）。
+    /// </para>
     /// </summary>
     public sealed class StargazingPower : PowerModel
     {
@@ -35,20 +40,14 @@ namespace lingdawnpao.Core
 
         public override PowerStackType StackType => PowerStackType.Single;
 
-        public override async Task BeforeSideTurnStart(PlayerChoiceContext choiceContext, CombatSide side, IReadOnlyList<Creature> participants, ICombatState combatState)
+        public override async Task AfterPlayerTurnStart(PlayerChoiceContext choiceContext, Player player)
         {
-            if (!participants.Contains(base.Owner))
+            if (player != base.Owner.Player)
             {
                 return;
             }
 
-            Player? owner = base.Owner.Player;
-            if (owner == null)
-            {
-                return;
-            }
-
-            CardPile drawPile = PileType.Draw.GetPile(owner);
+            CardPile drawPile = PileType.Draw.GetPile(player);
             List<CardModel> top = drawPile.Cards.Take(LookCount).ToList();
             if (top.Count == 0)
             {
@@ -58,7 +57,7 @@ namespace lingdawnpao.Core
             IEnumerable<CardModel> picked = await CardSelectCmd.FromCombatPile(
                 context: choiceContext,
                 pile: drawPile,
-                player: owner,
+                player: player,
                 prefs: new CardSelectorPrefs(CardSelectorPrefs.DiscardSelectionPrompt, 0, top.Count),
                 filter: top.Contains);
 

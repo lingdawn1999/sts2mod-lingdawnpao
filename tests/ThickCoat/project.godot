@@ -1,0 +1,8 @@
+config_version=5
+[application]
+config/name="Thick Coat regression"
+run/main_scene="res://Runner.tscn"
+[dotnet]
+project/assembly_name="ThickCoat"
+[rendering]
+renderer/rendering_method="gl_compatibility"

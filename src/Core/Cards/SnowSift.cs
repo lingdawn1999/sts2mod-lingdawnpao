@@ -46,16 +46,15 @@ namespace lingdawnpao.Core
         public override IEnumerable<CardKeyword> CanonicalKeywords => [CardKeyword.Exhaust];
 
         public SnowSift()
-            : base(1, CardType.Skill, CardRarity.Common, TargetType.Self)
+            : base(1, CardType.Skill, CardRarity.Uncommon, TargetType.Self)
         {
         }
 
         protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
         {
-            // 先带出旧牌再埋新牌（设伏同款顺序，防自己回收的牌被自己带出——2026-09-27 用户指出）
-            await AmbushZone.BringOutBeforeGenerateAsync(choiceContext, cardPlay.Target, Owner);
-
+            // 先用当前敏捷结算本牌格挡；仍在回收入区前带出旧牌，避免立即带出新牌。
             await CreatureCmd.GainBlock(Owner.Creature, DynamicVars.Block, cardPlay);
+            await AmbushZone.BringOutBeforeGenerateAsync(choiceContext, cardPlay.Target, Owner);
 
             CardModel? picked = (await CardSelectCmd.FromCombatPile(
                 prefs: new CardSelectorPrefs(SelectionScreenPrompt, 1),

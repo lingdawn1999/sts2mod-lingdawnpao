@@ -13,7 +13,7 @@ namespace lingdawnpao.Core
 {
     /// <summary>
     /// 芝士雪豹。卡池/遗物池/药水池均已自有；
-    /// 局内 Spine 形象与火堆/商人动画仍借用铁甲的（待 BaseLib 迁移时替换）。
+    /// 战斗使用独立雪豹骨架，支持常规与抱树丛低伏两套待机。
     /// </summary>
     public sealed class Lingdawnpao : CharacterModel
     {
@@ -49,15 +49,17 @@ namespace lingdawnpao.Core
             ModelDb.Card<HuntOperation>(),
         ];
 
+        // 2026-10-28：自然的护佑从开局自带挪进白色遗物池（LingdawnpaoSurvival.Rarity → Common），
+        // 开局保底由伏击者的"首回合自选入区"（FrostFang.AfterPlayerTurnStart）承担。
         public override IReadOnlyList<RelicModel> StartingRelics => [ModelDb.Relic<FrostFang>()];
 
-        public override float AttackAnimDelay => 0.15f;
+        public override float AttackAnimDelay => 0.266667f;
 
         public override float CastAnimDelay => 0.25f;
 
         /// <summary>
-        /// 全部动画触发器压到 idle_loop 常态：现有骨架的 attack/cast/hurt/die 动画质量不佳，
-        /// 重做 Spine 之前所有动作（攻击/施法/受击/死亡/蓄力）一律沿用常态。
+        /// 新骨架使用常规与埋伏两套待机，并提供攻击、受击、施法和终止的死亡状态。
+        /// 旧骨架缺少埋伏动画时仍可沿用占位状态。
         /// <para>
         /// **刻意不是 override**：`CharacterModel.GenerateAnimator` 在两个分支上不是同一套重载
         /// （public 是 1 参，public-beta 换成 2 参 `(controller, creature)`，而 override 必须逐字匹配签名）
@@ -67,10 +69,15 @@ namespace lingdawnpao.Core
         /// </summary>
         internal static CreatureAnimator CreateIdleAnimator(MegaSprite controller)
         {
+            if (controller.HasAnimation("ambush_idle"))
+                return LingdawnpaoAnimationController.Create(controller,
+                    LingdawnpaoAnimationController.FindCreature(controller));
             AnimState idle = new("idle_loop", isLooping: true);
             CreatureAnimator animator = new(idle, controller);
             animator.AddAnyState("Idle", idle);
-            animator.AddAnyState("Dead", idle);
+            // Keep the same placeholder pose, but death must finish instead of entering an idle loop.
+            animator.AddAnyState("Dead", CreateDeathState());
+            animator.AddAnyState("Revive", idle);
             animator.AddAnyState("Hit", idle);
             animator.AddAnyState("Attack", idle);
             animator.AddAnyState("Cast", idle);
@@ -78,6 +85,8 @@ namespace lingdawnpao.Core
             animator.AddAnyState("Relaxed", idle);
             return animator;
         }
+
+        internal static AnimState CreateDeathState() => new("idle_loop", isLooping: false);
 
         protected override string IconPath => SceneHelper.GetScenePath("ui/character_icons/lingdawnpao_icon");
 

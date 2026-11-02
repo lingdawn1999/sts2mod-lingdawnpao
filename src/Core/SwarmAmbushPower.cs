@@ -71,8 +71,8 @@ namespace lingdawnpao.Core
             AmbushZoneState zone = AmbushZone.For(player);
             // 只读基础张数：不含「蓄势」的 BonusExtra（用户 2026-09-25 澄清）
             AmbushZone.CountZoneTypes(zone, out int attacks, out int skills);
-            int str = zone.IsCoolingDown ? 0 : attacks;
-            int dex = zone.IsCoolingDown ? 0 : skills;
+            int str = zone.AreBonusesSuppressed ? 0 : attacks;
+            int dex = zone.AreBonusesSuppressed ? 0 : skills;
 
             foreach (Player ally in state.Players)
             {

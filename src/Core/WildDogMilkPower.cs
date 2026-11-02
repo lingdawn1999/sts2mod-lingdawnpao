@@ -1,10 +1,12 @@
 using MegaCrit.Sts2.Core.Entities.Powers;
 using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Entities.Creatures;
+using System.Threading.Tasks;
 
 namespace lingdawnpao.Core
 {
     /// <summary>
-    /// 「野生狗奶」（能力显示名：**永恒**）的载体——**纯标记型能力，无钩子、无层数**。
+    /// 「野生狗奶」（能力显示名：**永恒**）的载体；玩法为标记，另管理本地背景音乐。
     /// <para>
     /// 行为不在这里，而在 <see cref="AmbushZone.IsReady" />：它会主动查本能力，在场时把
     /// "跨回合潜伏"这个条件短路掉，于是埋入当回合即可带出并吃到埋伏收益。
@@ -22,5 +24,17 @@ namespace lingdawnpao.Core
 
         /// <summary>开关型能力：重复打出只保持存在，不叠层。</summary>
         public override PowerStackType StackType => PowerStackType.Single;
+
+        public override Task AfterApplied(Creature? applier, CardModel? cardSource)
+        {
+            if (Owner.Player is { } player) WildDogMilkMusic.TryStart(player);
+            return Task.CompletedTask;
+        }
+
+        public override Task AfterRemoved(Creature oldOwner)
+        {
+            WildDogMilkMusic.StopFor(oldOwner.Player);
+            return Task.CompletedTask;
+        }
     }
 }

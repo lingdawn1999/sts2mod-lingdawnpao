@@ -1,0 +1,8 @@
+config_version=5
+[application]
+config/name="Card visual regression"
+run/main_scene="res://Runner.tscn"
+[dotnet]
+project/assembly_name="VisualRegression"
+[rendering]
+renderer/rendering_method="gl_compatibility"

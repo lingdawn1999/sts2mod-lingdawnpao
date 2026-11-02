@@ -10,9 +10,8 @@ using MegaCrit.Sts2.Core.Models;
 namespace lingdawnpao.Core
 {
     /// <summary>
-    /// 覆霜：给目标挂 5 层冰冻（升级 8）。挂冰瞬间结算等同层数的直伤（**可被格挡**）并 **-2 层**
-    /// （5 层=立即 5 伤留 3 层；8 层=立即 8 伤留 6 层）。残留层数配合
-    /// "生命值低于冰冻层数立即死亡"提供斩杀线：后续挂冰叠层或补刀都可能触发处决。
+    /// 覆霜：1费普通技能，给予一名敌人6（升级9）层冰冻，不消耗。
+    /// 伤害、层数减半及处决均沿用统一冰冻入口。
     /// </summary>
     public sealed class FrostCoat : CardModel, ILingdawnpaoCard
     {
@@ -23,7 +22,7 @@ namespace lingdawnpao.Core
 
         protected override IEnumerable<DynamicVar> CanonicalVars =>
         [
-            new PowerVar<FrostbitePower>(5m),
+            new PowerVar<FrostbitePower>(6m),
         ];
 
         public FrostCoat()
@@ -40,7 +39,7 @@ namespace lingdawnpao.Core
 
         protected override void OnUpgrade()
         {
-            DynamicVars["FrostbitePower"].UpgradeValueBy(3m); // 冰冻 5 → 8
+            DynamicVars["FrostbitePower"].UpgradeValueBy(3m); // 冰冻 6 → 9
         }
     }
 }

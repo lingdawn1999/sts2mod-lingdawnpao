@@ -53,9 +53,10 @@ namespace lingdawnpao.Core
             // 结算顺序（2026-09-23 用户定案）：先带出区域里的**旧牌**，最后才填呼吸。
             // 遗物钩子对本卡整张豁免，带出必须由本卡自己发起（详见 AmbushZone.BringOutBeforeGenerateAsync）。
             await AmbushZone.BringOutBeforeGenerateAsync(choiceContext, cardPlay.Target, Owner);
+            if (!AmbushZone.CanContinueCombat(Owner)) return;
 
             // 冷却（过载代价）时埋不进任何牌，先判掉，避免凭空造出无处安放的衍生牌
-            while (!zone.IsFull && !zone.IsCoolingDown)
+            while (AmbushZone.CanContinueCombat(Owner) && !zone.IsFull && !zone.IsCoolingDown)
             {
                 Breath breath = CombatState!.CreateCard<Breath>(Owner);
                 if (!await AmbushZone.BuryGeneratedAsync(choiceContext, Owner, breath))

@@ -21,6 +21,10 @@ namespace lingdawnpao.Core
     /// 把选择范围限死在这 5 张里，最后 `CardCmd.Discard`。
     /// 选择提示用**本体内置的 `CardSelectorPrefs.DiscardSelectionPrompt`**（不需要自己写 `selectionScreenPrompt` 键，
     /// 顺带避开翻雪踩过的"缺键抛异常"坑）；`min = 0` 保证可以一张都不弃（确定键直接过）。
+    /// <para>
+    /// **⚠️ 2026-10-28 修 bug**：能力钩子从 `BeforeSideTurnStart` 挪到 `AfterPlayerTurnStart`
+    /// （摸牌后、获得操作权前的交互安全区）。详见 <see cref="StargazingPower" /> 的注释。
+    /// </para>
     ///
     /// **2026-09-22 改为无色卡**（用户原话："把观星改成无色卡，让他以无色卡的方式被获取（商店）
     /// 然后开放给所有角色都能获取。（因为它和我们的风格有点不搭，开放出来算了）"）。三处配套改动：

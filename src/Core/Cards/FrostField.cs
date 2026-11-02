@@ -12,11 +12,12 @@ using MegaCrit.Sts2.Core.Models;
 namespace lingdawnpao.Core
 {
     /// <summary>
-    /// 霜原：1 费普通（白）技能。给予**所有**敌人 3 层冰冻（升级 5）。
+    /// 霜原：1费普通技能，给予所有敌人4（6）层冰冻。
     /// 冰冻线的 AOE 挂冰源：单体挂冰（覆霜/冰冻打击/豹咬）在多敌人战斗里层数推进太慢，
     /// 这张负责一次性把全场层数垫起来，与「冰封千里」「霜之护盾」这类群伤/群收益咬合。
     /// 逐敌调用 ApplyFrostAsync（每只敌人的挂冰伤害各自独立结算），不是一次群发。
     /// **数值沿革**：初版 3/5 → 2026-09-21 上调 4/6 → **2026-09-25 用户下调回 3/5**（升级增量仍为 +2）。
+    /// 2026-10-27：按用户定案回调至4（6），补充未成型时的群体挂冰能力。
     /// </summary>
     public sealed class FrostField : CardModel, ILingdawnpaoCard
     {
@@ -27,7 +28,7 @@ namespace lingdawnpao.Core
 
         protected override IEnumerable<DynamicVar> CanonicalVars =>
         [
-            new PowerVar<FrostbitePower>(3m),
+            new PowerVar<FrostbitePower>(4m),
         ];
 
         public FrostField()
@@ -45,7 +46,7 @@ namespace lingdawnpao.Core
 
         protected override void OnUpgrade()
         {
-            DynamicVars["FrostbitePower"].UpgradeValueBy(2m); // 冰冻 3 → 5
+            DynamicVars["FrostbitePower"].UpgradeValueBy(2m); // 冰冻 4 → 6
         }
     }
 }

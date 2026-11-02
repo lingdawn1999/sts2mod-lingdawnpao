@@ -4,6 +4,7 @@ using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Logging;
 
 namespace lingdawnpao.Core
 {
@@ -58,8 +59,11 @@ namespace lingdawnpao.Core
 
         protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
         {
-            await CreatureCmd.TriggerAnim(Owner.Creature, "PowerUp", Owner.Character.PowerUpAnimDelay);
+            // The card's own bounded fly/fade replaces the optional PowerUp animation.
+            // Gameplay must not depend on the custom skeleton's visual animation state.
             await PowerCmd.Apply<WildDogMilkPower>(choiceContext, Owner.Creature, 1m, Owner.Creature, this);
+            if (!MegaCrit.Sts2.Core.TestSupport.TestMode.IsOn)
+                Log.Info($"野生狗奶：能力结算完成，玩家={Owner.NetId}，能力存在={Owner.Creature.HasPower<WildDogMilkPower>()}");
         }
 
         protected override void OnUpgrade()

@@ -18,6 +18,8 @@
     <Sts2Ref Condition="'$(Sts2Ref)' == ''">public</Sts2Ref>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Remove="tests/**/*.cs" />
+    <Compile Remove="build/**/*.cs" />
     <Reference Include="0Harmony">
       <HintPath>libs\0Harmony.dll</HintPath>
       <Private>false</Private>

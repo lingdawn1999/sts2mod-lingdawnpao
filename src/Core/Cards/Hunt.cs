@@ -26,13 +26,11 @@ namespace lingdawnpao.Core
         protected override IEnumerable<IHoverTip> ExtraHoverTips =>
         [
             HoverTipFactory.FromCard<Prey>(upgrade: IsUpgraded),
-            EnergyHoverTip,
         ];
 
         protected override IEnumerable<DynamicVar> CanonicalVars =>
         [
             new RepeatVar(3),
-            new EnergyVar(1),
         ];
 
         public Hunt()
@@ -48,11 +46,12 @@ namespace lingdawnpao.Core
             // 结算顺序（2026-09-23 用户定案）：先带出区域里的**旧牌**，最后才填猎物。
             // 遗物钩子对本卡整张豁免，带出必须由本卡自己发起（详见 AmbushZone.BringOutBeforeGenerateAsync）。
             await AmbushZone.BringOutBeforeGenerateAsync(choiceContext, cardPlay.Target, Owner);
+            if (!AmbushZone.CanContinueCombat(Owner)) return;
 
             // 冷却（过载代价）时埋不进任何牌，先判掉，避免凭空造出无处安放的衍生牌
             for (int i = 0; i < DynamicVars.Repeat.IntValue; i++)
             {
-                if (zone.IsFull || zone.IsCoolingDown)
+                if (!AmbushZone.CanContinueCombat(Owner) || zone.IsFull || zone.IsCoolingDown)
                 {
                     break;
                 }
@@ -71,13 +70,14 @@ namespace lingdawnpao.Core
                 await Cmd.Wait(0.1f);
             }
 
-            // 埋伏段（2026-09-23 用户新增）：这张牌**跨回合**从伏击区域被带出打出时，额外获得 1 点能量。
-            // 与「设伏」的升级方向不同：捕猎买的是"铺 3 张 + 兑现时回一笔费用"，让 2 费的开销在埋伏线里能收回来。
+            // 埋伏补充手牌资源；基础生成的3张猎物仍只进入伏击区域。
             if (AmbushZone.IsVeteranAmbush(this))
             {
+                AmbushEffects.Record(this);
                 for (int i = 0; i < AmbushZone.AmbushTriggerCount(Owner); i++)
                 {
-                    await PlayerCmd.GainEnergy(DynamicVars.Energy.IntValue, Owner);
+                    if (!AmbushZone.CanContinueCombat(Owner)) break;
+                    await Prey.CreateIntoHandAsync(Owner, CombatState!, IsUpgraded);
                 }
             }
         }

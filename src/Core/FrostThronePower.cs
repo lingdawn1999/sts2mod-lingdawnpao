@@ -69,6 +69,7 @@ namespace lingdawnpao.Core
             {
                 _deferredCosts.Clear();
                 _loanUsedThisTurn = false;
+                if (Owner.Player is { } player) AmbushZone.SyncCardCosts(player);
             }
 
             return Task.CompletedTask;
@@ -79,6 +80,9 @@ namespace lingdawnpao.Core
             modifiedCost = originalCost;
             if (!TryGetShortfall(card, originalCost, out decimal shortfall))
             {
+                // A previewed loan may become unnecessary after a free-attack buff
+                // or another cost change. Only the latest payment query is binding.
+                _deferredCosts.Remove(card);
                 return false;
             }
 
@@ -133,6 +137,19 @@ namespace lingdawnpao.Core
             int stacks = (int)shortfall * Amount;
             Log.Info($"冰封王座：{reason} {card.Id.Entry}（本次差额 {shortfall} 点能量）→ 自身获得 {stacks} 层冰冻");
             await FrostbitePower.ApplyFrostAsync(choiceContext, base.Owner, stacks, null, card);
+            if (Owner.Player is { } player) AmbushZone.SyncCardCosts(player);
+        }
+
+        public override Task AfterApplied(Creature? applier, CardModel? cardSource)
+        {
+            if (Owner.Player is { } player) AmbushZone.SyncCardCosts(player);
+            return Task.CompletedTask;
+        }
+
+        public override Task AfterRemoved(Creature oldOwner)
+        {
+            if (oldOwner.Player is { } player) AmbushZone.SyncCardCosts(player);
+            return Task.CompletedTask;
         }
 
         /// <summary>

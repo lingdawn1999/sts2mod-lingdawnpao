@@ -15,7 +15,7 @@ namespace lingdawnpao.Core
     /// <summary>
     /// 雪灾：**1 费蓝卡（Uncommon）技能**。**对[gold]所有敌人[/gold]**给予 14 层冰冻（升级 20）→
     /// **将 3 张「晕眩」加入伏击区域**。
-    /// 定位：兑现器的**自毁型**——「重整计划」把区域换成手牌与能量、「收网」把区域换成伤害，
+    /// 定位：兑现器的**自毁型**——「重整计划」带出打出后消耗并补抽牌、「收网」把区域换成伤害，
     /// 本卡把区域换成"一次性爆发 + 三格废墟"：14 层挂冰是全 mod 最高的单卡挂冰
     /// （对照：覆霜 1 费白挂 5、豹咬 2 费白挂 7、暴风雪 2 费蓝挂 8），代价是 3 张不可打出的晕眩占格，
     /// 在清掉之前既少埋牌、也吃不到那几格的力/敏加成。
@@ -90,6 +90,7 @@ namespace lingdawnpao.Core
         {
             // 先带出旧牌再填晕眩（蓄能/雪原疾行/翻雪同款：防遗物钩子事后带走刚填的晕眩）
             await AmbushZone.BringOutBeforeGenerateAsync(choiceContext, cardPlay.Target, Owner);
+            if (!AmbushZone.CanContinueCombat(Owner)) return;
 
             // 与"每次结算只给一次"的口径冲突。先取快照——挂冰伤害可能打死敌人。
             await FrostbitePower.ApplyFrostToAllAsync(choiceContext, CombatState!.HittableEnemies.ToList(),
@@ -98,7 +99,7 @@ namespace lingdawnpao.Core
             // 固定填 3 张晕眩（2026-09-27 用户定稿）：**不清空伏击区域**——玩家控好自己伏击区
             //（留好空格接晕眩 / 处理占格）本身就是奖励之一；区域已满时埋不进，晕眩直接不生成。
             AmbushZoneState zone = AmbushZone.For(Owner);
-            for (int i = 0; i < 3 && !zone.IsCoolingDown; i++)
+            for (int i = 0; i < 3 && AmbushZone.CanContinueCombat(Owner) && !zone.IsCoolingDown; i++)
             {
                 Dazed dazed = CombatState!.CreateCard<Dazed>(Owner);
                 if (!await AmbushZone.BuryGeneratedAsync(choiceContext, Owner, dazed))

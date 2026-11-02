@@ -1,0 +1,79 @@
+
+snow_leopard_v6.png
+size: 1883,1738
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+ambush-leopard
+  rotate: false
+  xy: 4, 847
+  size: 1774, 887
+  orig: 1774, 887
+  offset: 0, 0
+  index: -1
+fallen-leopard
+  rotate: false
+  xy: 4, 4
+  size: 1875, 839
+  orig: 1875, 839
+  offset: 0, 0
+  index: -1
+fx-white
+  rotate: false
+  xy: 1782, 1732
+  size: 2, 2
+  orig: 2, 2
+  offset: 0, 0
+  index: -1
+
+snow_leopard_v62.png
+size: 1544,1032
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+body
+  rotate: false
+  xy: 4, 4
+  size: 1536, 1024
+  orig: 1536, 1024
+  offset: 0, 0
+  index: -1
+
+snow_leopard_v63.png
+size: 1544,1032
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+claws-refined
+  rotate: false
+  xy: 4, 4
+  size: 1536, 1024
+  orig: 1536, 1024
+  offset: 0, 0
+  index: -1
+
+snow_leopard_v64.png
+size: 1544,1032
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+leopard
+  rotate: false
+  xy: 4, 4
+  size: 1536, 1024
+  orig: 1536, 1024
+  offset: 0, 0
+  index: -1
+
+snow_leopard_v65.png
+size: 1544,1032
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+released-shrub
+  rotate: false
+  xy: 4, 4
+  size: 1536, 1024
+  orig: 1536, 1024
+  offset: 0, 0
+  index: -1

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using MegaCrit.Sts2.Core.Combat;
@@ -8,6 +8,7 @@ using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Entities.Powers;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.TestSupport;
 using MegaCrit.Sts2.Core.Models.Powers;
 using MegaCrit.Sts2.Core.ValueProps;
 
@@ -20,8 +21,8 @@ namespace lingdawnpao.Core
     /// （2026-09-24 用户定稿的"双标"，见 <see cref="ApplyFrostAsync" /> 里的 flag 说明），
     /// 然后**层数减半（向上取整）**，详见 <see cref="LayersRetainedDivisor" /> 的沿革说明。
     /// 灾厄式处决：任何时候生命值不高于冰冻层数（`<=`）即立即死亡（复用本体 DoomPower.DoomKill，
-    /// 带灾厄特效与 AfterDiedToDoom 钩子）。挂冰结算逻辑集中在静态 ApplyFrostAsync，
-    /// 所有施加冰冻的来源统一走该方法，保证"伤害→扣层→处决判定"顺序一致。
+    /// 保留 AfterDiedToDoom 钩子，仅将可消失敌人的灾厄特效换成碎冰）。挂冰结算逻辑集中在静态 ApplyFrostAsync，
+    /// 普通挂冰在伤害和扣层全部完成后判定处决；纯叠层则立即判定。
     /// </summary>
     public sealed class FrostbitePower : PowerModel
     {
@@ -47,6 +48,11 @@ namespace lingdawnpao.Core
         /// 用户 2026-09-21 定案："改成每次结算只给一次"。
         /// </summary>
         private static int _batchDepth;
+        // Applying layers and the damage hook both run before the caller can halve them.
+        // Keep that whole step atomic for execution, scoped to this target and nesting depth.
+        private static readonly Dictionary<Creature, int> FrostDamageDepth = new();
+        private bool _checkingDoom;
+        private System.Func<Creature, Task> _doomAction = FrostExecutionVfx.DoomKillAsync;
 
         public override PowerType Type => PowerType.Debuff;
 
@@ -56,7 +62,7 @@ namespace lingdawnpao.Core
         /// 挂冰入口：堆叠层数，立刻按当前层数结算一次直伤（**对敌无视格挡**），每段结算后层数减半。
         /// 所有施加冰冻的来源统一走该方法。玩家每有 1 层「冰封」能力，额外多触发一段。
         /// </summary>
-        public static async Task<FrostbitePower?> ApplyFrostAsync(PlayerChoiceContext choiceContext, Creature target, decimal stacks, Creature? applier, CardModel? cardSource)
+        public static async Task<FrostbitePower?> ApplyFrostAsync(PlayerChoiceContext choiceContext, Creature target, decimal stacks, Creature? applier, CardModel? cardSource, bool triggerFrost = true)
         {
             // 「凝寒」（2026-09-28 用户定稿与「狂欢时刻」**对调**：金卡改拿回合内滚动，3 费）：
             // 当前回合你每造成 1 次冰冻，本回合**下一次**冰冻的层数 +1（首次 +0，逐次递增；回合开始重置）。
@@ -93,69 +99,103 @@ namespace lingdawnpao.Core
                 }
             }
 
-            FrostbitePower? power = await PowerCmd.Apply<FrostbitePower>(choiceContext, target, stacks, applier, cardSource);
-            if (power == null || !target.IsAlive)
-            {
-                return power;
-            }
-
-            // 「融冬」：把触发结算整体改写成"不造成伤害 + 层数不减"（2026-09-22 用户改成纯开关，去掉了成长项）。
-            // 判定放在循环外，避免每段重复查能力。
             bool meltForm = applier?.GetPower<WinterMeltPower>() != null;
-
-            int triggers = 1 + (applier?.GetPower<FrozenAdeptPower>()?.ExtraTriggers ?? 0);
-            for (int i = 0; i < triggers; i++)
+            bool resolvesDamage = triggerFrost && !meltForm;
+            if (resolvesDamage)
+                FrostDamageDepth[target] = FrostDamageDepth.GetValueOrDefault(target) + 1;
+            FrostbitePower? power;
+            try
             {
-                if (!target.IsAlive)
+                power = await PowerCmd.Apply<FrostbitePower>(choiceContext, target, stacks, applier, cardSource);
+                if (power == null || !target.IsAlive)
                 {
-                    break;
+                    return power;
                 }
 
-                // 融冬形态：既不结算伤害、也不衰减层数——层数只增不减
-                // （因此不存在"层数被扣光后打负伤害"的问题，也不需要判 `Amount <= 0`）
-                if (meltForm)
+                // 深冬仅施加层数：保留挂冰加成和回调，但不进行任何伤害/减半段（包括冰封追加段）。
+                int triggers = triggerFrost ? 1 + (applier?.GetPower<FrozenAdeptPower>()?.ExtraTriggers ?? 0) : 0;
+                for (int i = 0; i < triggers; i++)
                 {
-                    continue;
-                }
+                    if (!target.IsAlive)
+                    {
+                        break;
+                    }
 
-                // 层数已被扣光就不再触发：否则下一段会打出负伤害（等于给敌人回血）
-                if (power.Amount <= 0)
-                {
-                    break;
-                }
+                    // 融冬形态：既不结算伤害、也不衰减层数——层数只增不减
+                    // （因此不存在"层数被扣光后打负伤害"的问题，也不需要判 `Amount <= 0`）
+                    if (meltForm)
+                    {
+                        continue;
+                    }
 
-                // **2026-09-24 用户定稿的"双标"**：挂给**敌人**时**无视格挡**（`Unblockable`，
-                // 本体口径 = "像中毒那样的生命损失"），挂给**我方自己**时仍走格挡。
-                // 起因：用户判定"冰冻体系太弱、前期非常牢"——挂冰的主力全是技能牌，
-                // 费用换来的即时伤害又常被敌人的格挡吃掉，整条线在前期几乎没有压制力。
-                // 对敌无视格挡后，挂冰牌才真正等于"伤害牌"（这也是本 mod 把挂冰计入伤害职能的前提，
-                // 见卡池注释里"对标毒猎人"的那段口径）。
-                // **对己保持可格挡**是有意的不对称：自伤来自「冰封王座」「冰碎瓦全」「冰雪之躯」这类
-                // "贷款换收益"的价码，玩家的既有格挡能垫掉它，才不至于把代价变成硬扣血。
-                // 实现直接叠 flag（照「狩猎形态」的 `CreatureCmd.Damage` 前缀，
-                // 见 Patches.cs 里给攻击伤害叠 Unblockable 的那处），下游 `DamageBlockInternal` 认这个 flag。
-                //
-                // 仍保留 Unpowered（不吃力量等伤害加成）——同本体「主宰」Juggernaut 的"事件触发型伤害"口径
-                // （这张冰冻伤害原先是照「猎杀本能」写的，但那张金卡 2026-09-23 已重做成"每回合首次
-                // 给费/摸牌"的运转件，不再造成伤害；口径改挂到本体的 Juggernaut 上）。
-                // 注：这里曾经乘过「极寒」的伤害倍率，用户 2026-09-21 判定"体系后续会高频触发、倍率太强"而砍掉；
-                // 若将来要加回，倍率就乘在这一行（本体没有冰冻伤害的钩子，只能在此手算）。
-                ValueProp props = ValueProp.Unpowered;
-                if (target.IsEnemy)
-                {
-                    props |= ValueProp.Unblockable;
-                }
+                    // 层数已被扣光就不再触发：否则下一段会打出负伤害（等于给敌人回血）
+                    if (power.Amount <= 0)
+                    {
+                        break;
+                    }
 
-                await CreatureCmdCompat.Damage(choiceContext, target, (int)power.Amount, props,
-                    applier, cardSource, null);
-                // 每段把层数**减半、向上取整**：1 层 → 留 1（不再衰减）、3 层 → 留 2、5 层 → 留 3。
-                // 上面已确保 Amount > 0，所以 retained ≥ 1、扣除量 ≤ 当前层数，不会减成负数。
-                int current = (int)power.Amount;
-                int retained = (current + LayersRetainedDivisor - 1) / LayersRetainedDivisor;
-                int delta = retained - current;
-                if (delta != 0)
+                    // **2026-09-24 用户定稿的"双标"**：挂给**敌人**时**无视格挡**（`Unblockable`，
+                    // 本体口径 = "像中毒那样的生命损失"），挂给**我方自己**时仍走格挡。
+                    // 起因：用户判定"冰冻体系太弱、前期非常牢"——挂冰的主力全是技能牌，
+                    // 费用换来的即时伤害又常被敌人的格挡吃掉，整条线在前期几乎没有压制力。
+                    // 对敌无视格挡后，挂冰牌才真正等于"伤害牌"（这也是本 mod 把挂冰计入伤害职能的前提，
+                    // 见卡池注释里"对标毒猎人"的那段口径）。
+                    // **对己保持可格挡**是有意的不对称：自伤来自「冰封王座」「冰碎瓦全」「冰雪之躯」这类
+                    // "贷款换收益"的价码，玩家的既有格挡能垫掉它，才不至于把代价变成硬扣血。
+                    // 实现直接叠 flag（照「狩猎形态」的 `CreatureCmd.Damage` 前缀，
+                    // 见 Patches.cs 里给攻击伤害叠 Unblockable 的那处），下游 `DamageBlockInternal` 认这个 flag。
+                    //
+                    // 仍保留 Unpowered（不吃力量等伤害加成）——同本体「主宰」Juggernaut 的"事件触发型伤害"口径
+                    // （这张冰冻伤害原先是照「猎杀本能」写的，但那张金卡 2026-09-23 已重做成"每回合首次
+                    // 给费/摸牌"的运转件，不再造成伤害；口径改挂到本体的 Juggernaut 上）。
+                    // 注：这里曾经乘过「极寒」的伤害倍率，用户 2026-09-21 判定"体系后续会高频触发、倍率太强"而砍掉；
+                    // 若将来要加回，倍率就乘在这一行（本体没有冰冻伤害的钩子，只能在此手算）。
+                    ValueProp props = ValueProp.Unpowered;
+                    if (target.IsEnemy)
+                    {
+                        props |= ValueProp.Unblockable;
+                    }
+
+                    // Observe confirmed death, after native prevention has run. Direct
+                    // frost damage remains ordinary damage; only its visual impact changes.
+                    bool deathFeedbackPlayed = false;
+                    void FrostDeath(Creature dead)
+                    {
+                        if (deathFeedbackPlayed || dead != target) return;
+                        deathFeedbackPlayed = true;
+                        FrostExecutionFeedback.DirectDamageDeath(dead);
+                    }
+                    target.Died += FrostDeath;
+                    try
+                    {
+                        await CreatureCmdCompat.Damage(choiceContext, target, (int)power.Amount, props,
+                            applier, cardSource, null);
+                    }
+                    finally { target.Died -= FrostDeath; }
+                    if (!target.IsAlive) break;
+                    // 每段把层数**减半、向上取整**：1 层 → 留 1（不再衰减）、3 层 → 留 2、5 层 → 留 3。
+                    // 上面已确保 Amount > 0，所以 retained ≥ 1、扣除量 ≤ 当前层数，不会减成负数。
+                    int current = (int)power.Amount;
+                    int retained = (current + LayersRetainedDivisor - 1) / LayersRetainedDivisor;
+                    int delta = retained - current;
+                    if (delta != 0)
+                    {
+                        await PowerCmd.ModifyAmount(new ThrowingPlayerChoiceContext(), power, (decimal)delta, applier, cardSource);
+                    }
+
+                    // This segment is now fully resolved; only its retained layers count for execution.
+                    await power.CheckDoomAsync();
+                }
+            }
+            finally
+            {
+                // Also release on death, combat end or a failed damage hook. Other targets
+                // and subsequent attacks must never inherit this temporary deferral.
+                if (resolvesDamage)
                 {
-                    await PowerCmd.ModifyAmount(new ThrowingPlayerChoiceContext(), power, (decimal)delta, applier, cardSource);
+                    int remaining = FrostDamageDepth[target] - 1;
+                    if (remaining == 0) FrostDamageDepth.Remove(target);
+                    else FrostDamageDepth[target] = remaining;
                 }
             }
 
@@ -212,19 +252,28 @@ namespace lingdawnpao.Core
             }
         }
 
-        // 灾厄式处决：任何伤害结算后（含挂冰直伤、攻击伤害）检查 生命值 **不大于** 冰冻层数 即立即死亡。
-        // 死亡本身不产生伤害，无重入风险；目标已被该次伤害击杀时本钩子不会被调用。
-        // **2026-09-25 用户定案：`<` 改为 `<=`**（原话"层数刚刚好一样不斩杀也太扯了"）——
-        // 生命值 == 层数时同样斩杀（照本体 DoomPower.IsOwnerDoomed 的 `CurrentHp <= Amount` 口径）。
-        public override async Task AfterDamageReceived(PlayerChoiceContext choiceContext, Creature target, DamageResult result, ValueProp props, Creature? dealer, CardModel? cardSource)
-        {
-            if (target != base.Owner || base.Owner.IsDead || CombatManager.Instance.IsOverOrEnding || base.Owner.CurrentHp > base.Amount)
-            {
-                return;
-            }
+        // Stack-only sources execute immediately. A normal frost damage step checks explicitly
+        // after halving instead. External damage (including Avalanche before clearing) is unchanged.
+        public override Task AfterPowerAmountChanged(PlayerChoiceContext choiceContext, PowerModel power,
+            decimal amount, Creature? applier, CardModel? cardSource) =>
+            ReferenceEquals(power, this) && amount > 0m && !FrostDamageDepth.ContainsKey(Owner)
+                ? CheckDoomAsync() : Task.CompletedTask;
 
-            Flash();
-            await DoomPower.DoomKill(new Creature[] { base.Owner });
+        public override Task AfterDamageReceived(PlayerChoiceContext choiceContext, Creature target, DamageResult result,
+            ValueProp props, Creature? dealer, CardModel? cardSource) =>
+            target == Owner && !FrostDamageDepth.ContainsKey(target) ? CheckDoomAsync() : Task.CompletedTask;
+
+        private async Task CheckDoomAsync()
+        {
+            if (_checkingDoom || Owner == null || Owner.IsDead || Amount <= 0 || Owner.CurrentHp > Amount
+                || (!TestMode.IsOn && CombatManager.Instance.IsOverOrEnding)) return;
+            _checkingDoom = true;
+            try
+            {
+                if (!TestMode.IsOn) Flash();
+                await _doomAction(Owner);
+            }
+            finally { _checkingDoom = false; }
         }
     }
 }

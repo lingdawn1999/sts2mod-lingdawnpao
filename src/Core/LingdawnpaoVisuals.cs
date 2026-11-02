@@ -31,7 +31,7 @@ namespace lingdawnpao.Core
     /// </summary>
     internal static class LingdawnpaoVisuals
     {
-        private const string SkelDataPath = "res://animations/characters/lingdawnpao/lingdawnpao_skel_data.tres";
+        private const string SkelDataPath = "res://animations/characters/lingdawnpao/v6_motion/snow_leopard_v6_skel_data.tres";
 
         /// <summary>骨架资源常驻引用：加载成功即缓存，避免战斗/房间切换路径反复读盘（失败不缓存，下次再试）。</summary>
         private static Resource? _skelData;
@@ -39,10 +39,10 @@ namespace lingdawnpao.Core
         /// <summary>模组初始化时预热（此时没有战斗、没有资产加载会话，是最干净的加载时机）。</summary>
         public static void Warmup() => _skelData ??= GD.Load<Resource>(SkelDataPath);
 
-        // 骨架单位→屏幕像素。rig 竖直范围约 spine y -100(脚)..540(背)，0.35 缩放下脚落在 +35，
-        // 故 sprite 上移 35 让脚贴 y≈0（与铁甲 Bounds bottom=-1 一致），总高约 224px 同铁甲。
-        private const float SpriteScale = 0.35f;
-        private static readonly Vector2 SpritePosition = new(0f, -35f);
+        // v4 source already uses a floor at y=0. Standing height is about 300 units;
+        // 0.70 keeps the body near the original battle size, with space for the long tail.
+        private const float SpriteScale = 0.70f;
+        private static readonly Vector2 SpritePosition = Vector2.Zero;
 
         /// <summary>构建雪豹的 Spine 战斗视觉；**资产不可用时返回 null**（调用方必须退回本体视觉，不许塞 null 给本体）。</summary>
         public static NCreatureVisuals? Build()
@@ -69,9 +69,9 @@ namespace lingdawnpao.Core
             {
                 Name = "Bounds",
                 MouseFilter = Control.MouseFilterEnum.Ignore,
-                OffsetLeft = -170f,
-                OffsetTop = -235f,
-                OffsetRight = 180f,
+                OffsetLeft = -245f,
+                OffsetTop = -225f,
+                OffsetRight = 210f,
                 OffsetBottom = 0f,
             };
             AddOwned(visuals, bounds);
