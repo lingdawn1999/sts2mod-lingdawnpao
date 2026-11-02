@@ -12,7 +12,8 @@ namespace lingdawnpao.Core
 {
     /// <summary>
     /// 雪暴倾泻：**X 费**罕见（蓝）攻击（2026-09-21 用户定稿，2026-09-25 改数值口径）。
-    /// 消耗所有能量，**每点能量造成 3 点伤害、打 3 次**（升级每点 4 点，次数不变）。
+    /// 消耗所有能量，造成 3 点伤害 **3X** 次（升级：4 点伤害 **3X+1** 次）。
+    /// <para>
     /// **为什么必须做**：全池 `HasEnergyCostX` **零匹配**——mod 完全没有 X 费牌，这是一整个缺失维度。
     /// 写法照本体「连射」Volley（0 费 X 蓝 · 随机 · 每点能量 10 伤，升级每点 +4）与「旋风斩」Whirlwind：
     /// `HasEnergyCostX => true` + `base(0, ...)` + `ResolveEnergyXValue()` 取实际支付的费用，
@@ -20,14 +21,14 @@ namespace lingdawnpao.Core
     /// **与本体的差别**：Volley 是**随机目标**（每点 10 伤），本卡是**定向单体**——
     /// 精准选定目标的代价是每点总伤更低；这也让本卡与「乱雪纷飞」分工互补
     /// （一个是软 AOE 摊给全场，一个是可集火的定向倾泻）。
-    /// **2026-09-25 用户改口径**：原为"每点能量 9 点单段伤害"（升级 12），
-    /// 定案改成"**每点 3 伤 × 3 次**"——总伤不变（3 点能量 = 18 伤，升级 24），
-    /// 但拆成多段后能被力量/伏击区增益**逐段吃满**，也在打"低血高频"的敌人时更稳。
-    /// 与同族的能量出口对照：雪原疾行（0 费 1 能量 + 抽 1）。
+    /// **2026-11-03 用户改升级位**：从"每段 3 → 4"改为"**次数 3X → 3X+1**"——
+    /// 纯加每段伤在 0 能量时无感（0 段=不打），"3X+1"让升级版 **0 能量也有 1 段 4 伤保底**，
+    /// 且升级是伤害+次数双增益（4 伤 × 3X+1 次：1 费 16 / 2 费 28 / 3 费 40）。
+    /// </para>
     /// </summary>
     public sealed class SnowstormTorrent : CardModel, ILingdawnpaoCard
     {
-        /// <summary>每点能量打几段（升级不动它，只动每段伤害）。</summary>
+        /// <summary>每点能量打几段（固定 3，升级位不再动它）。</summary>
         private const int HitsPerEnergy = 3;
 
         protected override bool HasEnergyCostX => true;
@@ -35,7 +36,6 @@ namespace lingdawnpao.Core
         protected override IEnumerable<DynamicVar> CanonicalVars =>
         [
             new DamageVar(3m, ValueProp.Move),
-            new RepeatVar(HitsPerEnergy),
         ];
 
         public SnowstormTorrent()
@@ -48,6 +48,11 @@ namespace lingdawnpao.Core
             ArgumentNullException.ThrowIfNull(cardPlay.Target, "cardPlay.Target");
 
             int hits = ResolveEnergyXValue() * HitsPerEnergy;
+            if (IsUpgraded)
+            {
+                hits += 1; // 升级：3X → 3X+1（0 能量保底 1 段）
+            }
+
             if (hits <= 0)
             {
                 return;
@@ -61,7 +66,7 @@ namespace lingdawnpao.Core
 
         protected override void OnUpgrade()
         {
-            DynamicVars.Damage.UpgradeValueBy(1m); // 每段 3 → 4（次数固定 3 次）
+            DynamicVars.Damage.UpgradeValueBy(1m); // 每段 3 → 4（升级位的另一半：次数 3X → 3X+1 在 OnPlay 里）
         }
     }
 }

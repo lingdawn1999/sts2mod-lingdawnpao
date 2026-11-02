@@ -3,9 +3,12 @@ using System.Collections.Generic;
 using Godot;
 using MegaCrit.Sts2.addons.mega_text;
 using MegaCrit.Sts2.Core.Helpers;
+using MegaCrit.Sts2.Core.HoverTips;
+using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Logging;
 using MegaCrit.Sts2.Core.Nodes.Combat;
 using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
+using MegaCrit.Sts2.Core.Nodes.HoverTips;
 using MegaCrit.Sts2.Core.Nodes.Rooms;
 using MegaCrit.Sts2.Core.Nodes.Screens;
 using MegaCrit.Sts2.Core.Nodes.Screens.Capstones;
@@ -15,6 +18,7 @@ namespace lingdawnpao.Core
     /// <summary>
     /// 伏击堆按钮：和抽牌/弃牌/消耗堆按钮并排挂在战斗 UI 的牌堆容器里，
     /// 点击打开 NCardPileScreen 查看埋着的牌与先后顺序（本体弃牌堆同款界面）。
+    /// 悬停显示说明提示（本体牌堆按钮同款交互）。
     /// </summary>
     public partial class NAmbushPileButton : NButton
     {
@@ -33,6 +37,26 @@ namespace lingdawnpao.Core
             AmbushZoneUi.ToggleScreen();
         }
 
+        protected override void OnFocus()
+        {
+            // 本体牌堆按钮同款悬停说明（此前无文案，悬停只弹一个空黑条）
+            HoverTip hoverTip = new HoverTip(
+                new LocString("static_hover_tips", "AMBUSH_PILE.title"),
+                new LocString("static_hover_tips", "AMBUSH_PILE.description"));
+            NHoverTipSet? tip = NHoverTipSet.CreateAndShow(this, hoverTip);
+            if (tip != null)
+            {
+                // 不设位置会落在屏幕左上角默认位（本体 NCombatCardPile.OnFocus 也是手动定位的），
+                // 伏击堆挂在右侧栏消耗堆上方，提示放按钮左侧（同本体消耗堆的偏移）
+                tip.GlobalPosition = GlobalPosition + new Vector2(-320f, -125f);
+            }
+        }
+
+        protected override void OnUnfocus()
+        {
+            NHoverTipSet.Remove(this);
+        }
+
         public void SetCount(int count)
         {
             _count?.SetTextAutoSize(count.ToString());
@@ -41,6 +65,7 @@ namespace lingdawnpao.Core
         public override void _ExitTree()
         {
             base._ExitTree();
+            NHoverTipSet.Remove(this);
             AmbushZoneUi.Forget(this);
         }
     }

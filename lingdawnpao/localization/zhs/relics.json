@@ -2,6 +2,7 @@
   "FROST_FANG.title": "伏击者",
   "FROST_FANG.description": "在每场战斗开始时，你可以将一张手牌加入[gold]伏击区域[/gold]（初始上限3），你可以切换为[gold]伏击形态[/gold]。",
   "FROST_FANG.flavor": "“潜伏起来，等待一个机会。”",
+  "FROST_FANG.selectionScreenPrompt": "选择一张要加入伏击区域的手牌。",
   "ASSASSIN.title": "暗杀者",
   "ASSASSIN.description": "在你的回合开始时，你可以将一张手牌加入[gold]伏击区域[/gold]（初始上限4），你可以切换为[gold]伏击形态[/gold]。",
   "LINGDAWNPAO_SURVIVAL.title": "自然的护佑",

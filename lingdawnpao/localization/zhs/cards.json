@@ -172,7 +172,7 @@
   "SNOW_PEAK_CRUSH.title": "雪峰压顶",
   "SNOW_PEAK_CRUSH.description": "对所有敌人造成{Damage:diff()}点伤害，并给予{FrostbitePower:diff()}层[gold]冰冻[/gold]。",
   "SNOWSTORM_TORRENT.title": "雪暴倾泻",
-  "SNOWSTORM_TORRENT.description": "消耗所有能量，每点能量造成{Damage:diff()}点伤害{Repeat:diff}次。",
+  "SNOWSTORM_TORRENT.description": "消耗所有能量，造成{Damage:diff()}点伤害{IfUpgraded:show:3X+1|3X}次。",
   "FROSTBLOOM.title": "霜华迸发",
   "FROSTBLOOM.description": "给予{FrostbitePower:diff()}层[gold]冰冻[/gold]。如果目标已有[gold]冰冻[/gold]，则改为给予{FrostbloomBoost:diff()}层。",
   "TING_QIAO.title": "听桥",

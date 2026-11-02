@@ -172,7 +172,7 @@
   "SNOW_PEAK_CRUSH.title": "Snowpeak Crush",
   "SNOW_PEAK_CRUSH.description": "Deal {Damage:diff()} damage and apply {FrostbitePower:diff()} [gold]Frostbite[/gold] to ALL enemies.",
   "SNOWSTORM_TORRENT.title": "Snowstorm Torrent",
-  "SNOWSTORM_TORRENT.description": "Spend all your energy. For each energy spent, deal {Damage:diff()} damage {Repeat:diff} times.",
+  "SNOWSTORM_TORRENT.description": "Spend all your Energy. Deal {Damage:diff()} damage {IfUpgraded:show:3X+1|3X} times.",
   "FROSTBLOOM.title": "Frostbloom",
   "FROSTBLOOM.description": "Apply {FrostbitePower:diff()} [gold]Frostbite[/gold]. If the target already has [gold]Frostbite[/gold], apply {FrostbloomBoost:diff()} instead.",
   "TING_QIAO.title": "Tingqiao",

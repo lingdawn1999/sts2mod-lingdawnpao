@@ -2,6 +2,7 @@
   "FROST_FANG.title": "Ambusher",
   "FROST_FANG.description": "At the start of each combat, you may add a card from your hand to your [gold]Ambush zone[/gold]. (Base capacity 3) You can switch to [gold]Ambush form[/gold].",
   "FROST_FANG.flavor": "“Lurk in the dark, and wait for the moment.”",
+  "FROST_FANG.selectionScreenPrompt": "Choose a card from your hand to add to your Ambush zone.",
   "ASSASSIN.title": "Assassin",
   "ASSASSIN.description": "At the start of your turn, you may add a card from your hand to your [gold]Ambush zone[/gold]. (Base capacity 4) You can switch to [gold]Ambush form[/gold].",
   "LINGDAWNPAO_SURVIVAL.title": "Nature's Blessing",
